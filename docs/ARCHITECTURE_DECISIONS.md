@@ -2,6 +2,9 @@
 
 This document records the initial technical choices for the project.
 
+The current increment implements the application shell only. Persistence,
+identifiers, and academic domain decisions below remain planned work.
+
 ## ADR-001 — Flutter for client applications
 
 **Decision:** Use Flutter for both Windows and Android.
@@ -74,3 +77,36 @@ Past semesters and their schedules are historical records and must not be overwr
 ## ADR-010 — Other dashboard modules remain isolated
 
 Tasks, Shopping, Spending, and the Today summary should not receive real data models until their own design phase begins.
+
+## ADR-011 — Shell and feature presentation boundaries
+
+**Decision:** Keep application composition, responsive navigation, and themes in
+`lib/app/`. Give each module a presentation entry point under `lib/features/` and
+keep reusable visual components in `lib/shared/widgets/`.
+
+**Reasoning:** The Class Schedule placeholder can be replaced without coupling
+its future domain/data layer to desktop or mobile navigation. Introduce feature
+repositories, domain types, and persistence only when implementing that module.
+
+The shell uses a width breakpoint of 900 logical pixels. Wider windows show a
+40-pixel Today summary at the top and a two-column, two-row dashboard.
+`DesktopDashboard` assigns the remaining viewport height equally to both rows
+and the full available width equally to both columns. Margins and gaps are 12
+pixels, with no desktop scrolling or maximum content-width cap.
+
+Desktop has no separate application toolbar. Settings opens from the right end
+of the Today bar and contains the theme selector. Removing the former 48-pixel
+toolbar gives each dashboard row 24 additional pixels at the same window size.
+
+Feature presentation entry points accept a desktop presentation flag; shared
+`DesktopModulePanel` supplies compact headers and short empty states without
+altering the mobile cards. On short desktop windows, panel content contracts
+and optional empty-state decoration is omitted before headers. No fake records,
+metrics, or live-status indicators are introduced.
+
+Below 900 logical pixels, the existing single-page layout, bottom navigation,
+and vertical scrolling are retained, including when a Windows window is narrow.
+
+Riverpod providers currently hold only the selected module and `ThemeMode`.
+Both are in-memory preferences; theme defaults to the system setting. No
+database packages or generated providers are needed for this increment.

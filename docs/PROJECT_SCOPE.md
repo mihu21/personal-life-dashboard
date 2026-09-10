@@ -28,9 +28,16 @@ Each main module should have its own page rather than shrinking the desktop dash
 
 ## Current implementation scope
 
-Only the **Class Schedule module** is in scope.
+The current development increment implements only the **Flutter application
+shell**: Windows and Android scaffolding, responsive desktop/mobile layouts,
+Material 3 themes, and Riverpod-managed shell preferences.
 
-The other dashboard areas must remain placeholders during this phase.
+Today, Class Schedule, Tasks & Reminders, Shopping, and Spending are all visual
+placeholders. No persistence, course models, graduation tracking, or module
+logic is implemented in this increment.
+
+The **Class Schedule module** described below is the next planned functional
+phase. The other dashboard areas must remain placeholders during that phase.
 
 ## Class Schedule module responsibilities
 

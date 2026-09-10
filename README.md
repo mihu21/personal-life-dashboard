@@ -1,67 +1,109 @@
 # Personal Life Dashboard
 
-A local-first personal dashboard for Windows and Android.
+A personal dashboard for Windows and Android, built with Flutter, Material 3,
+and Riverpod. The current implementation is an **application shell only**.
 
-The app is intentionally being built module-by-module. The first implemented module will be the **Class Schedule** module.
+## What is implemented
 
-## Current project status
+- At widths of 900 logical pixels and above: a 40-pixel Today bar at the top
+  and four equal panels in a 2×2 dashboard (Class Schedule,
+  Tasks & Reminders, Shopping, Spending). The grid fills the available viewport
+  width and height with 12-pixel margins and gaps; desktop content does not scroll.
+- At narrower widths: separate placeholder pages with bottom navigation for
+  Schedule, Tasks, Shopping, and Spending. This also supports narrow Windows
+  windows and Android landscape layouts.
+- Light, dark, and system themes. On desktop, open Settings at the right end of
+  the Today bar to choose a theme. Mobile retains its top-right theme menu.
+- Desktop panels resize with the window and use compact placeholder content.
+  Narrow/mobile pages retain their scrollable layout and original presentation.
 
-This repository currently contains the project definition and implementation brief only.
+All five dashboard areas are explicitly marked as coming soon. There is no
+sample course or financial data, SQLite/Drift setup, domain model, graduation
+tracking, or module business logic. Tab and theme choices are transient and reset
+when the app restarts; the theme defaults to the system setting.
 
-The Flutter application itself will be created in the next development commit.
+## Requirements
 
-## Phase 1 — Class Schedule
+Developed with Flutter 3.44.2 and Dart 3.12.2. Use a compatible stable Flutter SDK
+with Dart 3.12.2 or later. Put Flutter's `bin` directory on your PATH.
 
-The Class Schedule module will eventually include:
+- Windows: Visual Studio with the **Desktop development with C++** workload and
+  Windows SDK.
+- Android: Android SDK, accepted SDK licenses, and an Android emulator or a
+  physical device with USB debugging enabled.
 
-- Today and Week schedule views
-- Current and next class awareness
-- Free-time gaps
-- Course locations
-- Semester history
-- Graduation credit tracking
-- Custom graduation categories
-- Course tags
-- Future-semester planning
-- Schedule conflict detection
-- Graduation-impact previews
-- One-off schedule exceptions
+Check your toolchain with `flutter doctor -v`.
 
-The rest of the dashboard will initially remain as visual placeholders:
+## Run on Windows
 
-- Today summary bar
-- Tasks & Reminders
-- Shopping
-- Spending
+From PowerShell:
 
-## Target platforms
+```powershell
+cd C:\Users\MiHu\Documents\personal-life-dashboard
+flutter pub get
+flutter run -d windows
+```
 
-- Windows desktop
-- Android
+## Run on Android
 
-## Planned stack
+Start an Android emulator or connect your device, then:
 
-- Flutter
-- Dart
-- Material 3
-- SQLite
-- Drift
-- Riverpod
+```powershell
+cd C:\Users\MiHu\Documents\personal-life-dashboard
+flutter pub get
+flutter devices
+flutter run -d <android-device-id>
+```
 
-The application will be local-first. Cloud synchronization is intentionally out of scope for the first phase.
+Replace `<android-device-id>` with the Android ID printed by `flutter devices`
+(for example, `flutter run -d emulator-5554`). To start a configured emulator:
 
-## Repository documents
+```powershell
+flutter emulators
+flutter emulators --launch <emulator-id>
+```
 
-- `CODEX_CLASS_SCHEDULE_MODULE.md` — detailed implementation brief for Codex
-- `docs/PROJECT_SCOPE.md` — product scope and boundaries
-- `docs/ARCHITECTURE_DECISIONS.md` — initial technical decisions
+## Validation
 
-## Suggested first development step
+```powershell
+dart format .
+flutter analyze
+flutter test
+```
 
-After this initial commit is pushed, give Codex the contents of `CODEX_CLASS_SCHEDULE_MODULE.md` and ask it to implement the project incrementally.
+Widget tests cover desktop placement, equal panel sizes and viewport containment
+from 900×320 to 2560×1440, absence of desktop scrolling, mobile navigation, theme
+switching, selection across resizing, and enlarged text.
 
-Suggested next commit:
+## Code layout
 
 ```text
-feat: initialize Flutter application shell
+lib/
+  main.dart                       # ProviderScope and startup
+  app/
+    dashboard_app.dart            # MaterialApp
+    shell/                        # Responsive composition and transient UI state
+    theme/                        # Material 3 light/dark themes
+  features/
+    class_schedule/presentation/  # Future schedule presentation entry point
+    tasks/presentation/           # Placeholder only
+    shopping/presentation/        # Placeholder only
+    spending/presentation/        # Placeholder only
+  shared/widgets/                 # Reusable placeholder presentation
 ```
+
+Future Class Schedule work should replace its presentation entry point, adding
+feature-owned domain/data layers and repository providers when that work is
+requested. Keep business logic out of the shell and shared widgets. SQLite,
+Drift, stable identifiers, semester history, and graduation accounting remain
+future decisions to implement according to the architecture documents. Other
+modules remain isolated until their own design phase.
+
+## Project documents
+
+- `docs/PROJECT_SCOPE.md` — long-term product scope and boundaries
+- `docs/ARCHITECTURE_DECISIONS.md` — technical decisions and shell boundaries
+
+The previously referenced `CODEX_CLASS_SCHEDULE_MODULE.md` is not present in this
+checkout. Its detailed brief should be supplied before implementing that module.
+Cloud synchronization remains out of scope.
