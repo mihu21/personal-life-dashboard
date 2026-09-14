@@ -28,16 +28,15 @@ Each main module should have its own page rather than shrinking the desktop dash
 
 ## Current implementation scope
 
-The current development increment implements only the **Flutter application
-shell**: Windows and Android scaffolding, responsive desktop/mobile layouts,
-Material 3 themes, and Riverpod-managed shell preferences.
+The **Class Schedule module** is implemented on the approved Flutter application
+shell: Drift persistence, semester/category/course management, Today/Week views,
+one-off changes, graduation progress, history, and future planning with conflict
+warnings. Its full-screen module opens from the existing top-left desktop panel
+or from the mobile Schedule tab.
 
-Today, Class Schedule, Tasks & Reminders, Shopping, and Spending are all visual
-placeholders. No persistence, course models, graduation tracking, or module
-logic is implemented in this increment.
-
-The **Class Schedule module** described below is the next planned functional
-phase. The other dashboard areas must remain placeholders during that phase.
+The approved Windows dashboard geometry and Today/settings bar are preserved.
+Today, Tasks & Reminders, Shopping, and Spending remain placeholders with no
+data models or module functionality.
 
 ## Class Schedule module responsibilities
 

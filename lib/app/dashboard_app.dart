@@ -16,6 +16,10 @@ class DashboardApp extends ConsumerWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ref.watch(themeModeProvider),
+      builder: (context, child) => Theme(
+        data: AppTheme.responsive(context, Theme.of(context)),
+        child: child!,
+      ),
       home: const DashboardShell(),
     );
   }

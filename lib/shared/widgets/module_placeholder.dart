@@ -37,9 +37,13 @@ class ModulePlaceholder extends StatelessWidget {
       return DesktopModulePanel(title: title, icon: icon, accent: accent);
     }
 
+    final denseMobile =
+        MediaQuery.sizeOf(context).width < 600 &&
+        MediaQuery.textScalerOf(context).scale(1) <= 1.4;
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(denseMobile ? 8 : 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -47,14 +51,14 @@ class ModulePlaceholder extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(denseMobile ? 6 : 8),
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(denseMobile ? 9 : 12),
                   ),
-                  child: Icon(icon, color: accent, size: 26),
+                  child: Icon(icon, color: accent, size: denseMobile ? 20 : 24),
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: denseMobile ? 7 : 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,7 +69,7 @@ class ModulePlaceholder extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      SizedBox(height: denseMobile ? 1 : 2),
                       Text(
                         subtitle,
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -77,7 +81,7 @@ class ModulePlaceholder extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            SizedBox(height: denseMobile ? 10 : 16),
             Text(
               'COMING SOON',
               style: theme.textTheme.labelSmall?.copyWith(
@@ -86,7 +90,7 @@ class ModulePlaceholder extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: denseMobile ? 4 : 6),
             Text(
               headline,
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -94,24 +98,24 @@ class ModulePlaceholder extends StatelessWidget {
                 letterSpacing: -.5,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: denseMobile ? 4 : 6),
             Text(
               description,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: scheme.onSurfaceVariant,
-                height: 1.5,
+                height: denseMobile ? 1.25 : 1.4,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: denseMobile ? 8 : 12),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: denseMobile ? 4 : 6,
+              runSpacing: denseMobile ? 4 : 6,
               children: [
                 for (final label in previewLabels)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 7,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: denseMobile ? 7 : 9,
+                      vertical: denseMobile ? 3 : 5,
                     ),
                     decoration: BoxDecoration(
                       color: scheme.surfaceContainerLow,

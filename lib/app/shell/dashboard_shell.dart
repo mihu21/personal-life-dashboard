@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../features/class_schedule/presentation/class_schedule_placeholder.dart';
+import '../../features/class_schedule/presentation/class_schedule_module.dart';
 import '../../features/shopping/presentation/shopping_placeholder.dart';
 import '../../features/spending/presentation/spending_placeholder.dart';
 import '../../features/tasks/presentation/tasks_placeholder.dart';
-import 'shell_state.dart';
+import '../theme/app_density.dart';
 import 'desktop_dashboard.dart';
+import 'settings_dialog.dart';
+import 'shell_state.dart';
 
 class DashboardShell extends ConsumerWidget {
   const DashboardShell({super.key});
 
-  static const desktopBreakpoint = 900.0;
+  static const desktopBreakpoint = AppDensity.desktopBreakpoint;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,48 +23,54 @@ class DashboardShell extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final desktop = constraints.maxWidth >= desktopBreakpoint;
-        return Scaffold(
+        final denseMobile = AppDensity.isMobile(context);
+        final mobileTheme = theme;
+        final scaffold = Scaffold(
           appBar: desktop
               ? null
               : AppBar(
+                  titleSpacing: denseMobile ? 8 : 10,
                   title: Row(
                     children: [
                       Icon(
                         Icons.space_dashboard_rounded,
+                        size: denseMobile ? 18 : 20,
                         color: theme.colorScheme.primary,
                       ),
-                      const SizedBox(width: 12),
-                      const Flexible(child: Text('Personal space')),
+                      SizedBox(width: denseMobile ? 5 : 8),
+                      Flexible(
+                        child: Text(
+                          'Personal space',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: denseMobile ? theme.textTheme.titleMedium : null,
+                        ),
+                      ),
                     ],
                   ),
                   actions: [
-                    PopupMenuButton<ThemeMode>(
-                      tooltip: 'Choose theme',
-                      initialValue: ref.watch(themeModeProvider),
-                      onSelected: ref.read(themeModeProvider.notifier).select,
-                      icon: const Icon(Icons.brightness_6_outlined),
-                      itemBuilder: (context) => [
-                        for (final mode in ThemeMode.values)
-                          CheckedPopupMenuItem(
-                            value: mode,
-                            checked: ref.read(themeModeProvider) == mode,
-                            child: Text(switch (mode) {
-                              ThemeMode.system => 'System theme',
-                              ThemeMode.light => 'Light theme',
-                              ThemeMode.dark => 'Dark theme',
-                            }),
-                          ),
-                      ],
+                    IconButton(
+                      tooltip: 'Settings',
+                      icon: Icon(
+                        Icons.settings_outlined,
+                        size: denseMobile ? 19 : 21,
+                      ),
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => const SettingsDialog(),
+                      ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: denseMobile ? 2 : 4),
                   ],
                 ),
           body: SafeArea(
             child: desktop
                 ? const DesktopDashboard()
+                : selected == DashboardModule.schedule
+                ? const ClassScheduleModule()
                 : SingleChildScrollView(
                     key: PageStorageKey(selected.name),
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(denseMobile ? 6 : 10),
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 1240),
@@ -71,19 +79,20 @@ class DashboardShell extends ConsumerWidget {
                           children: [
                             Text(
                               _pageTitle(selected),
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -.8,
-                              ),
+                              style: mobileTheme.textTheme.headlineMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: -.8,
+                                  ),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: denseMobile ? 2 : 4),
                             Text(
                               'A space for the things that matter.',
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                              style: mobileTheme.textTheme.bodyLarge?.copyWith(
+                                color: mobileTheme.colorScheme.onSurfaceVariant,
                               ),
                             ),
-                            const SizedBox(height: 24),
+                            SizedBox(height: denseMobile ? 6 : 10),
                             _page(selected),
                           ],
                         ),
@@ -100,28 +109,35 @@ class DashboardShell extends ConsumerWidget {
                       .select(DashboardModule.values[index]),
                   destinations: const [
                     NavigationDestination(
-                      icon: Icon(Icons.calendar_month_outlined),
-                      selectedIcon: Icon(Icons.calendar_month_rounded),
+                      icon: _TightNavIcon(Icons.calendar_month_outlined),
+                      selectedIcon: _TightNavIcon(
+                        Icons.calendar_month_rounded,
+                      ),
                       label: 'Schedule',
                     ),
                     NavigationDestination(
-                      icon: Icon(Icons.checklist_outlined),
-                      selectedIcon: Icon(Icons.checklist_rounded),
+                      icon: _TightNavIcon(Icons.checklist_outlined),
+                      selectedIcon: _TightNavIcon(Icons.checklist_rounded),
                       label: 'Tasks',
                     ),
                     NavigationDestination(
-                      icon: Icon(Icons.shopping_bag_outlined),
-                      selectedIcon: Icon(Icons.shopping_bag_rounded),
+                      icon: _TightNavIcon(Icons.shopping_bag_outlined),
+                      selectedIcon: _TightNavIcon(Icons.shopping_bag_rounded),
                       label: 'Shopping',
                     ),
                     NavigationDestination(
-                      icon: Icon(Icons.account_balance_wallet_outlined),
-                      selectedIcon: Icon(Icons.account_balance_wallet_rounded),
+                      icon: _TightNavIcon(
+                        Icons.account_balance_wallet_outlined,
+                      ),
+                      selectedIcon: _TightNavIcon(
+                        Icons.account_balance_wallet_rounded,
+                      ),
                       label: 'Spending',
                     ),
                   ],
                 ),
         );
+        return scaffold;
       },
     );
   }
@@ -134,9 +150,21 @@ class DashboardShell extends ConsumerWidget {
   };
 
   static Widget _page(DashboardModule module) => switch (module) {
-    DashboardModule.schedule => const ClassSchedulePlaceholder(),
+    DashboardModule.schedule => const ClassScheduleModule(),
     DashboardModule.tasks => const TasksPlaceholder(),
     DashboardModule.shopping => const ShoppingPlaceholder(),
     DashboardModule.spending => const SpendingPlaceholder(),
   };
+}
+
+class _TightNavIcon extends StatelessWidget {
+  const _TightNavIcon(this.icon);
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Transform.translate(
+    offset: const Offset(0, 2),
+    child: Icon(icon),
+  );
 }

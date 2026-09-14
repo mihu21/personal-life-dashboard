@@ -26,9 +26,12 @@ class DesktopModulePanel extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final headerHeight = (MediaQuery.textScalerOf(context).scale(20) + 28)
+          final headerHeight = (MediaQuery.textScalerOf(context).scale(20) + 20)
               .clamp(0.0, constraints.maxHeight);
-          final showBody = constraints.maxHeight > headerHeight + 32;
+          final bodyTextHeight =
+              MediaQuery.textScalerOf(context).scale(14) * 1.5;
+          final showBody =
+              constraints.maxHeight > headerHeight + bodyTextHeight + 18;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -37,11 +40,11 @@ class DesktopModulePanel extends StatelessWidget {
                 child: ColoredBox(
                   color: scheme.surfaceContainerLow.withValues(alpha: .5),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Row(
                       children: [
                         Icon(icon, size: 20, color: accent),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             title,
@@ -57,7 +60,7 @@ class DesktopModulePanel extends StatelessWidget {
                         if (constraints.maxWidth > 520 &&
                             MediaQuery.textScalerOf(context).scale(12) <=
                                 18) ...[
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           Text(
                             'PLACEHOLDER',
                             style: theme.textTheme.labelSmall?.copyWith(
@@ -76,26 +79,26 @@ class DesktopModulePanel extends StatelessWidget {
                 Expanded(
                   child: Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (constraints.maxHeight >
+                              headerHeight + bodyTextHeight + 48) ...[
                             Icon(
                               icon,
-                              size: 28,
+                              size: 24,
                               color: accent.withValues(alpha: .7),
                             ),
-                            const SizedBox(height: 10),
-                            Text(
-                              'Coming soon',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
+                            const SizedBox(height: 6),
                           ],
-                        ),
+                          Text(
+                            'Coming soon',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

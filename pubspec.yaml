@@ -1,5 +1,5 @@
 name: personal_life_dashboard
-description: A personal dashboard shell for Windows and Android.
+description: A local-first personal dashboard with academic schedules for Windows and Android.
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -7,14 +7,22 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
+  archive: ^4.0.7
+  drift: ^2.35.0
+  drift_flutter: ^0.3.1
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.4.3
+  path_provider: ^2.1.6
+  uuid: ^4.6.0
+  xml: ^6.6.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  drift_dev: ^2.35.0
+  build_runner: ^2.15.1
 
 flutter:
   uses-material-design: true

@@ -2,8 +2,8 @@
 
 This document records the initial technical choices for the project.
 
-The current increment implements the application shell only. Persistence,
-identifiers, and academic domain decisions below remain planned work.
+The application shell and the first functional Class Schedule module are
+implemented. The other dashboard modules remain placeholders.
 
 ## ADR-001 — Flutter for client applications
 
@@ -98,15 +98,54 @@ Desktop has no separate application toolbar. Settings opens from the right end
 of the Today bar and contains the theme selector. Removing the former 48-pixel
 toolbar gives each dashboard row 24 additional pixels at the same window size.
 
-Feature presentation entry points accept a desktop presentation flag; shared
-`DesktopModulePanel` supplies compact headers and short empty states without
-altering the mobile cards. On short desktop windows, panel content contracts
-and optional empty-state decoration is omitted before headers. No fake records,
-metrics, or live-status indicators are introduced.
+The Class Schedule panel has its own functional presentation and expands to a
+full module route for editing, progress, history, and planning. Other feature
+entry points continue to use `DesktopModulePanel` for their placeholders. The
+dashboard itself never scrolls; long record lists and the full timetable may
+scroll inside the opened module.
 
 Below 900 logical pixels, the existing single-page layout, bottom navigation,
 and vertical scrolling are retained, including when a Windows window is narrow.
 
-Riverpod providers currently hold only the selected module and `ThemeMode`.
-Both are in-memory preferences; theme defaults to the system setting. No
-database packages or generated providers are needed for this increment.
+Shell providers hold the selected module and `ThemeMode` as in-memory preferences.
+Academic providers own a Drift database, repository, reactive snapshot, and a
+30-second clock stream. Theme defaults to the system setting.
+
+## ADR-012 — Academic persistence and record lifecycle
+
+**Decision:** Use Drift schema version 1 with UUID entity IDs, timestamps, and
+soft-deletion tombstones. Store the database in the platform application-support
+directory through `drift_flutter`. Keep the single overall academic setting under
+a stable singleton key. Foreign keys and a partial unique index enforce references
+and at most one non-deleted current semester.
+
+**Reasoning:** Transactions keep courses, meetings, tags, and exceptions consistent.
+Marking another semester current changes the previous semester status without
+changing its course results. Archiving preserves records; deleting a populated
+semester requires explicit confirmation and soft-deletes its descendants.
+Hidden categories still participate in credit calculations.
+
+## ADR-013 — Deterministic academic calculations
+
+**Decision:** Keep schedule generation, interval conflicts, free gaps, and credit
+totals in pure functions using immutable records. Credits are counted once per
+course, independently of tags. Planning previews include completed/in-progress
+credits and only the selected semester's planned credits.
+
+Dates represent local calendar days; times are integer minutes after midnight.
+Intervals are half-open, so an end at 10:00 and a start at 10:00 do not conflict.
+Free gaps use the union of overlapping meetings. Schedule exceptions reference a
+specific meeting, preventing ambiguity for courses with multiple meetings on one
+day. Extra classes are standalone dated occurrences. Cross-date moves use cancel
+plus extra-class records. Weekly scheduling remains unchanged by exceptions.
+
+Conflict warnings apply to weekly planned/in-progress meetings in the same
+semester. They are advisory and include a Save anyway action. The full timetable
+uses parallel lanes to keep overlapping blocks visible. Category colors belong
+to presentation, not academic rules.
+
+## ADR-014 — Optional demonstration data
+
+**Decision:** Seed only starter category names automatically. Fictional academic
+records require an explicit Load demo action, and only an empty semester/course
+database is eligible. Demo records are labeled and do not silently replace data.
