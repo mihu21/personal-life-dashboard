@@ -4,6 +4,7 @@ import '../data/academic_database.dart';
 import '../data/academic_repository.dart';
 import '../data/academic_snapshot.dart';
 import '../data/nthu_catalog_repository.dart';
+import '../data/local_backup_service.dart';
 import '../data/one_time_event_repository.dart';
 import '../domain/one_time_event.dart';
 
@@ -54,6 +55,13 @@ final nthuCatalogRepositoryProvider = Provider<NthuCatalogRepository>(
 
 final academicRepositoryProvider = Provider<AcademicRepository>(
   (ref) => AcademicRepository(ref.watch(academicDatabaseProvider)),
+);
+
+final localBackupServiceProvider = Provider<LocalBackupService>(
+  (ref) => LocalBackupService(
+    ref.watch(academicDatabaseProvider),
+    ref.watch(oneTimeEventRepositoryProvider),
+  ),
 );
 
 final academicSnapshotProvider = StreamProvider<AcademicSnapshot>((ref) async* {

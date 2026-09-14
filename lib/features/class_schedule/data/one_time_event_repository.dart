@@ -59,6 +59,17 @@ class OneTimeEventRepository {
     await _write(events);
   }
 
+  Future<void> replaceAll(Iterable<OneTimeEvent> events) async {
+    final replacement = events.toList()
+      ..sort((a, b) {
+        final date = a.date.compareTo(b.date);
+        if (date != 0) return date;
+        final time = a.startMinute.compareTo(b.startMinute);
+        return time != 0 ? time : a.title.compareTo(b.title);
+      });
+    await _write(replacement);
+  }
+
   Future<void> _write(List<OneTimeEvent> events) async {
     final file = await _fileFactory();
     await file.parent.create(recursive: true);
