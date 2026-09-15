@@ -11,7 +11,7 @@ import '../providers/academic_providers.dart';
 import 'academic_data_view.dart';
 import 'add_schedule_button.dart';
 import 'course_editor.dart';
-import 'one_time_event_editor.dart';
+import 'one_time_event_details.dart';
 import 'record_editors.dart';
 import 'records_view.dart';
 import 'today_schedule.dart';
@@ -278,14 +278,14 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
                   now: now,
                   events: events,
                   onEventTap: (event) =>
-                      showOneTimeEventEditor(context, event: event),
+                      showOneTimeEventDetails(context, event: event),
                 )
               : TodaySchedule(
                   classes: scheduleForDay(data, semester.id, day),
                   events: eventsForDay(events, day),
                   now: now,
                   onEventTap: (event) =>
-                      showOneTimeEventEditor(context, event: event),
+                      showOneTimeEventDetails(context, event: event),
                 ),
         ),
       ],

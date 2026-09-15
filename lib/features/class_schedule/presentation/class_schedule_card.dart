@@ -8,7 +8,7 @@ import '../providers/academic_providers.dart';
 import 'academic_data_view.dart';
 import 'add_schedule_button.dart';
 import 'class_schedule_module.dart';
-import 'one_time_event_editor.dart';
+import 'one_time_event_details.dart';
 import 'today_schedule.dart';
 import 'week_timetable.dart';
 
@@ -115,7 +115,7 @@ class _ClassScheduleCardState extends ConsumerState<ClassScheduleCard> {
                         now: now,
                         events: events,
                         onEventTap: (event) =>
-                            showOneTimeEventEditor(context, event: event),
+                            showOneTimeEventDetails(context, event: event),
                         compact: true,
                       )
                     : TodaySchedule(
@@ -123,7 +123,7 @@ class _ClassScheduleCardState extends ConsumerState<ClassScheduleCard> {
                         events: eventsForDay(events, now),
                         now: now,
                         onEventTap: (event) =>
-                            showOneTimeEventEditor(context, event: event),
+                            showOneTimeEventDetails(context, event: event),
                         compact: true,
                         onOpen: () => openFullSchedule(context),
                       );

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/academic_database.dart';
+import '../data/event_notification_service.dart';
 import '../data/academic_repository.dart';
 import '../data/academic_snapshot.dart';
 import '../data/nthu_catalog_repository.dart';
@@ -32,6 +33,10 @@ final scheduleViewModeProvider =
 
 final oneTimeEventRepositoryProvider = Provider<OneTimeEventRepository>(
   (ref) => OneTimeEventRepository(),
+);
+
+final eventNotificationServiceProvider = Provider<EventNotificationService>(
+  (ref) => EventNotificationService(),
 );
 
 final oneTimeEventsProvider = FutureProvider<List<OneTimeEvent>>((ref) async {

@@ -13,6 +13,7 @@ class OneTimeEvent {
     this.specificTime = '',
     this.location = '',
     this.notes = '',
+    this.reminderMinutesBefore = const <int>[],
   });
 
   final String id;
@@ -26,6 +27,13 @@ class OneTimeEvent {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// Minutes before the timetable start at which a reminder should fire.
+  ///
+  /// `0` means at event time. Values are stored as data with the event so
+  /// backup/restore keeps the user's reminder choices even though the OS
+  /// notification schedule itself is device-local.
+  final List<int> reminderMinutesBefore;
+
   NthuPeriodRange get periodRange => NthuPeriodRange(startPeriod, endPeriod);
   int get startMinute => periodRange.startMinute;
   int get endMinute => periodRange.endMinute;
@@ -36,6 +44,14 @@ class OneTimeEvent {
     endPeriod: endPeriod,
   );
 
+  DateTime get startDateTime => DateTime(
+    date.year,
+    date.month,
+    date.day,
+    startMinute ~/ 60,
+    startMinute % 60,
+  );
+
   OneTimeEvent copyWith({
     String? title,
     DateTime? date,
@@ -44,6 +60,7 @@ class OneTimeEvent {
     String? specificTime,
     String? location,
     String? notes,
+    List<int>? reminderMinutesBefore,
     DateTime? updatedAt,
   }) => OneTimeEvent(
     id: id,
@@ -54,6 +71,8 @@ class OneTimeEvent {
     specificTime: specificTime ?? this.specificTime,
     location: location ?? this.location,
     notes: notes ?? this.notes,
+    reminderMinutesBefore:
+        reminderMinutesBefore ?? this.reminderMinutesBefore,
     createdAt: createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -67,12 +86,25 @@ class OneTimeEvent {
     'specificTime': specificTime,
     'location': location,
     'notes': notes,
+    'reminderMinutesBefore': reminderMinutesBefore,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
   };
 
   factory OneTimeEvent.fromJson(Map<String, Object?> json) {
     final date = DateTime.parse(json['date']! as String);
+    final rawReminders = json['reminderMinutesBefore'];
+    final reminders = <int>[];
+    if (rawReminders is List) {
+      reminders.addAll(
+        rawReminders
+            .whereType<num>()
+            .map((value) => value.toInt())
+            .where((value) => value >= 0)
+            .toSet(),
+      );
+      reminders.sort();
+    }
     return OneTimeEvent(
       id: json['id']! as String,
       title: json['title']! as String,
@@ -82,10 +114,24 @@ class OneTimeEvent {
       specificTime: (json['specificTime'] as String?) ?? '',
       location: (json['location'] as String?) ?? '',
       notes: (json['notes'] as String?) ?? '',
+      reminderMinutesBefore: reminders,
       createdAt: DateTime.parse(json['createdAt']! as String),
       updatedAt: DateTime.parse(json['updatedAt']! as String),
     );
   }
+}
+
+String reminderLabel(int minutesBefore) {
+  if (minutesBefore == 0) return 'At event time';
+  if (minutesBefore % (24 * 60) == 0) {
+    final days = minutesBefore ~/ (24 * 60);
+    return '$days day${days == 1 ? '' : 's'} before';
+  }
+  if (minutesBefore % 60 == 0) {
+    final hours = minutesBefore ~/ 60;
+    return '$hours hour${hours == 1 ? '' : 's'} before';
+  }
+  return '$minutesBefore min before';
 }
 
 List<OneTimeEvent> eventsForDay(Iterable<OneTimeEvent> events, DateTime date) {

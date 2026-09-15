@@ -78,6 +78,64 @@ class _SemesterEditorState extends ConsumerState<SemesterEditor>
     super.dispose();
   }
 
+  Future<void> _deleteSemester() async {
+    final semester = widget.semester;
+    if (semester == null || saving) return;
+
+    try {
+      final repository = ref.read(academicRepositoryProvider);
+      final data = await repository.snapshot();
+      final courseCount = data.coursesIn(semester.id).length;
+      if (!mounted) return;
+
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Delete semester?'),
+          content: Text(
+            courseCount == 0
+                ? 'Delete “${semester.name}”? This cannot be undone.'
+                : 'Delete “${semester.name}”? This semester contains '
+                      '$courseCount course${courseCount == 1 ? '' : 's'}. '
+                      'Deleting it will also permanently remove all of those '
+                      'courses, their meetings, one-off schedule changes, and '
+                      'course tag links.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(
+                courseCount == 0 ? 'Delete semester' : 'Delete semester & courses',
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      setState(() {
+        saving = true;
+        error = null;
+      });
+      await repository.removeSemester(
+        semester.id,
+        confirmed: courseCount > 0,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          error = errorMessage(e);
+          saving = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => EditorFrame(
     title: widget.semester == null ? 'Create semester' : 'Edit semester',
@@ -149,6 +207,20 @@ class _SemesterEditorState extends ConsumerState<SemesterEditor>
         const Text(
           'Making a semester current closes the previous current semester. Course statuses and historical records stay unchanged.',
         ),
+        if (widget.semester != null) ...[
+          const Divider(),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: saving ? null : _deleteSemester,
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Delete semester'),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ),
+        ],
       ],
     ),
   );

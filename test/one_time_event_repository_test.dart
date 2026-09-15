@@ -22,6 +22,7 @@ void main() {
       specificTime: '10:20–11:45',
       location: 'Student center',
       notes: 'Bring the form',
+      reminderMinutesBefore: const [30, 1440],
       createdAt: stamp,
       updatedAt: stamp,
     );
@@ -32,6 +33,7 @@ void main() {
     expect(loaded.single.title, 'Club meeting');
     expect(loaded.single.scheduleCode, 'S3S4');
     expect(loaded.single.specificTime, '10:20–11:45');
+    expect(loaded.single.reminderMinutesBefore, [30, 1440]);
     expect(eventsForDay(loaded, DateTime(2026, 9, 19)), hasLength(1));
     expect(eventsForDay(loaded, DateTime(2026, 9, 26)), isEmpty);
 

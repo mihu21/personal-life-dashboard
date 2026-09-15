@@ -232,16 +232,29 @@ class _RecordsViewState extends ConsumerState<RecordsView> {
                       tooltip: 'Semester actions',
                       onSelected: (action) async {
                         if (action == 'delete') {
+                          final courseCount = data.coursesIn(s.id).length;
+                          final message = courseCount == 0
+                              ? 'Delete “${s.name}”? This cannot be undone.'
+                              : 'Delete “${s.name}”? This semester contains '
+                                    '$courseCount course${courseCount == 1 ? '' : 's'}. '
+                                    'Deleting it will also remove all of those '
+                                    'courses and their schedule data.';
                           if (await confirmAction(
                             context,
-                            'Delete ${s.name} and its ${data.coursesIn(s.id).length} courses? Archive instead to keep history visible.',
+                            message,
+                            action: courseCount == 0
+                                ? 'Delete semester'
+                                : 'Delete semester & courses',
                           )) {
                             if (context.mounted) {
                               await runAction(
                                 context,
                                 () => ref
                                     .read(academicRepositoryProvider)
-                                    .removeSemester(s.id, confirmed: true),
+                                    .removeSemester(
+                                      s.id,
+                                      confirmed: courseCount > 0,
+                                    ),
                               );
                             }
                           }

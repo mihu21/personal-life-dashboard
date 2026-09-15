@@ -161,6 +161,13 @@ void main() {
       expect(data.courses.single.semesterId, semester);
       expect(data.courses.single.status, CourseStatus.inProgress);
       await expectLater(repo.removeSemester(semester), throwsArgumentError);
+
+      await repo.removeSemester(semester, confirmed: true);
+      final afterDelete = await repo.snapshot();
+      expect(afterDelete.semesters.any((s) => s.id == semester), false);
+      expect(afterDelete.courses.where((c) => c.semesterId == semester), isEmpty);
+      expect(afterDelete.meetings, isEmpty);
+      expect(afterDelete.courseTags, isEmpty);
     },
   );
 
