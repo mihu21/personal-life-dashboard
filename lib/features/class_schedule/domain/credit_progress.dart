@@ -60,15 +60,18 @@ CreditTotals creditTotals(
 
 /// Graduation-category accounting with category caps.
 ///
-/// A category with [GraduationCategory.requiredCredits] set can contribute at
-/// most that many credits. Credits above the cap are transferred to the
-/// `Free Elective` bucket while preserving their status (completed,
+/// Categories other than `Free Elective` are capped by
+/// [GraduationCategory.requiredCredits]. Credits above a cap are transferred
+/// to the `Free Elective` bucket while preserving their status (completed,
 /// in-progress, or planned). Completed credits consume a category cap first,
 /// followed by in-progress and then planned credits.
 ///
+/// `Free Elective` is intentionally uncapped: directly assigned Free Elective
+/// credits plus overflow from other categories can exceed its requirement
+/// (for example, 34 / 30). The requirement is a minimum, not a maximum.
+///
 /// Overall credit totals should still use [creditTotals], because every valid
-/// course credit remains part of the student's total even when a category cap
-/// is already full.
+/// course credit remains part of the student's total exactly once.
 Map<String, CreditTotals> allocatedCategoryCredits(
   Iterable<Course> courses,
   Iterable<GraduationCategory> categories, {
@@ -97,11 +100,9 @@ Map<String, CreditTotals> allocatedCategoryCredits(
       categoryId: freeElective.id,
       plannedSemesterId: plannedSemesterId,
     );
-    final combined = _addTotals(rawFree, overflow);
-    result[freeElective.id] = _capTotals(
-      combined,
-      freeElective.requiredCredits,
-    ).allocated;
+    // Free Elective is a minimum requirement, not a maximum bucket. Keep all
+    // directly assigned credits plus overflow from capped categories.
+    result[freeElective.id] = _addTotals(rawFree, overflow);
   }
 
   return result;

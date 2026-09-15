@@ -12,14 +12,13 @@ class _DefaultGraduationCategory {
     required this.name,
     required this.sortOrder,
     this.requiredCredits,
-    this.description = '',
     this.isActive = true,
   });
 
   final String id;
   final String name;
   final double? requiredCredits;
-  final String description;
+  final String description = '';
   final int sortOrder;
   final bool isActive;
 }

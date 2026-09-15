@@ -123,30 +123,56 @@ class _ClassScheduleModuleState extends State<ClassScheduleModule> {
       }
 
       final denseMobile = constraints.maxWidth < 600 && textScale <= 1.4;
-      final tabs = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < _labels.length; i++) ...[
-            ChoiceChip(
-              showCheckmark: false,
-              avatar: denseMobile ? null : Icon(_icons[i], size: 15),
-              label: Text(_labels[i]),
-              selected: section == i,
-              visualDensity: denseMobile
-                  ? const VisualDensity(horizontal: -3, vertical: -4)
-                  : const VisualDensity(horizontal: -1, vertical: -2),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              padding: EdgeInsets.zero,
-              labelPadding: EdgeInsets.symmetric(
-                horizontal: denseMobile ? 6 : 8,
-              ),
-              onSelected: (_) => setState(() => section = i),
-            ),
-            if (i != _labels.length - 1)
-              SizedBox(width: denseMobile ? 2 : 4),
-          ],
-        ],
-      );
+      final tabs = denseMobile
+          ? Row(
+              children: [
+                for (var i = 0; i < _labels.length; i++) ...[
+                  Expanded(
+                    child: ChoiceChip(
+                      showCheckmark: false,
+                      label: Text(
+                        _labels[i],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                      selected: section == i,
+                      visualDensity: const VisualDensity(
+                        horizontal: -4,
+                        vertical: -4,
+                      ),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: EdgeInsets.zero,
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 2),
+                      onSelected: (_) => setState(() => section = i),
+                    ),
+                  ),
+                  if (i != _labels.length - 1) const SizedBox(width: 2),
+                ],
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < _labels.length; i++) ...[
+                  ChoiceChip(
+                    showCheckmark: false,
+                    avatar: Icon(_icons[i], size: 15),
+                    label: Text(_labels[i]),
+                    selected: section == i,
+                    visualDensity: const VisualDensity(
+                      horizontal: -1,
+                      vertical: -2,
+                    ),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: EdgeInsets.zero,
+                    labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    onSelected: (_) => setState(() => section = i),
+                  ),
+                  if (i != _labels.length - 1) const SizedBox(width: 4),
+                ],
+              ],
+            );
       return Column(
         children: [
           Material(

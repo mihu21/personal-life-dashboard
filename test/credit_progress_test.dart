@@ -132,6 +132,68 @@ void main() {
     },
   );
 
+  test('Free Elective can exceed its requirement after overflow', () {
+    final stamp = DateTime(2026, 9, 1);
+    final original = sampleAcademicData().courses.first;
+    final categories = [
+      GraduationCategory(
+        id: 'core',
+        name: 'Core',
+        requiredCredits: 12,
+        sortOrder: 0,
+        isActive: true,
+        createdAt: stamp,
+        updatedAt: stamp,
+      ),
+      GraduationCategory(
+        id: 'elective',
+        name: 'Free Elective',
+        requiredCredits: 30,
+        sortOrder: 1,
+        isActive: true,
+        createdAt: stamp,
+        updatedAt: stamp,
+      ),
+    ];
+    final courses = [
+      original.copyWith(
+        id: 'core-1',
+        graduationCategoryId: 'core',
+        status: CourseStatus.completed,
+        credits: 6,
+      ),
+      original.copyWith(
+        id: 'core-2',
+        graduationCategoryId: 'core',
+        status: CourseStatus.completed,
+        credits: 7,
+      ),
+      original.copyWith(
+        id: 'free-1',
+        graduationCategoryId: 'elective',
+        status: CourseStatus.completed,
+        credits: 15,
+      ),
+      original.copyWith(
+        id: 'free-2',
+        graduationCategoryId: 'elective',
+        status: CourseStatus.completed,
+        credits: 18,
+      ),
+    ];
+
+    final allocated = allocatedCategoryCredits(courses, categories);
+
+    expect(allocated['core']!.completed, 12);
+    expect(allocated['elective']!.completed, 34);
+    expect(allocated['elective']!.completed, greaterThan(30));
+    expect(creditTotals(courses).completed, 46);
+    expect(
+      allocated['core']!.completed + allocated['elective']!.completed,
+      46,
+    );
+  });
+
   test('completed course count tracks overall and category completion', () {
     final original = sampleAcademicData().courses.first;
     final courses = [
