@@ -178,22 +178,49 @@ void main() {
     expect((await repo.snapshot()).meetings.single.startTime, 540);
   });
 
-  test('categories seed once, can reorder/hide; settings persist', () async {
+  test('fresh install seeds current graduation requirements once', () async {
     await repo.initialize();
-    final original = (await repo.snapshot()).categories;
-    expect(original.length, 6);
+    final initial = await repo.snapshot();
+    final original = initial.categories;
+
+    expect(
+      original.map((item) => item.name),
+      [
+        'Chinese',
+        'General Education',
+        'Physical Education',
+        'Department Required',
+        'Basic Core',
+        'Core',
+        'Lab',
+        'Professional Course',
+        'Free Elective',
+        'Others',
+      ],
+    );
+    expect(
+      original.map((item) => item.requiredCredits),
+      [8, 20, null, 18, 12, 12, 4, 24, 30, null],
+    );
+    expect(original.last.isActive, false);
+    expect(initial.settings.requiredCredits, 128);
+
     await repo.saveCategory(
       id: category,
-      name: 'Core',
-      requiredCredits: 24,
+      name: 'Chinese - customized',
+      requiredCredits: 9,
       isActive: false,
     );
     await repo.reorderCategories(original.reversed.map((c) => c.id).toList());
-    await repo.saveSettings(requiredCredits: 128, setupDismissed: true);
+    await repo.saveSettings(requiredCredits: 130, setupDismissed: true);
+
+    // Re-initializing an existing installation must not restore bundled values.
+    await repo.initialize();
     final data = await repo.snapshot();
-    expect(data.categories.last.name, 'Core');
+    expect(data.categories.last.name, 'Chinese - customized');
+    expect(data.categories.last.requiredCredits, 9);
     expect(data.categories.last.isActive, false);
-    expect(data.settings.requiredCredits, 128);
+    expect(data.settings.requiredCredits, 130);
   });
 
   test('on-disk records survive closing and reopening database', () async {
@@ -263,7 +290,7 @@ void main() {
     'unused categories can be deleted but Free Elective stays available',
     () async {
       final data = await repo.snapshot();
-      final other = data.categories.firstWhere((c) => c.name == 'Other');
+      final other = data.categories.firstWhere((c) => c.name == 'Others');
       final free = data.categories.firstWhere((c) => c.name == 'Free Elective');
 
       await repo.removeCategory(other.id);

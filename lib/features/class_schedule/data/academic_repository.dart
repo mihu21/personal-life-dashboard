@@ -6,6 +6,86 @@ import '../domain/course_draft.dart';
 import 'academic_database.dart';
 import 'academic_snapshot.dart';
 
+class _DefaultGraduationCategory {
+  const _DefaultGraduationCategory({
+    required this.id,
+    required this.name,
+    required this.sortOrder,
+    this.requiredCredits,
+    this.description = '',
+    this.isActive = true,
+  });
+
+  final String id;
+  final String name;
+  final double? requiredCredits;
+  final String description;
+  final int sortOrder;
+  final bool isActive;
+}
+
+const _defaultGraduationCategories = <_DefaultGraduationCategory>[
+  _DefaultGraduationCategory(
+    id: '5a0c9cf4-278f-43d2-8df1-922f2119d460',
+    name: 'Chinese',
+    requiredCredits: 8.0,
+    sortOrder: 0,
+  ),
+  _DefaultGraduationCategory(
+    id: 'd96afc50-8bd8-4526-9267-c1d0b248b978',
+    name: 'General Education',
+    requiredCredits: 20.0,
+    sortOrder: 1,
+  ),
+  _DefaultGraduationCategory(
+    id: '70b11764-589c-47ec-a0f3-f51fa9bb4f9e',
+    name: 'Physical Education',
+    sortOrder: 2,
+  ),
+  _DefaultGraduationCategory(
+    id: '2372452d-3a7a-480e-a8d5-e46a8114e1f7',
+    name: 'Department Required',
+    requiredCredits: 18.0,
+    sortOrder: 3,
+  ),
+  _DefaultGraduationCategory(
+    id: '74dc6526-6ed8-4551-8448-2d41f5874ecd',
+    name: 'Basic Core',
+    requiredCredits: 12.0,
+    sortOrder: 4,
+  ),
+  _DefaultGraduationCategory(
+    id: '4a48d632-381d-475b-aa9e-d938f18a6294',
+    name: 'Core',
+    requiredCredits: 12.0,
+    sortOrder: 5,
+  ),
+  _DefaultGraduationCategory(
+    id: '83644351-7686-48c8-a94e-eb7d7dc144fd',
+    name: 'Lab',
+    requiredCredits: 4.0,
+    sortOrder: 6,
+  ),
+  _DefaultGraduationCategory(
+    id: '4de84f88-22ae-4c49-baf9-e463ccf6d443',
+    name: 'Professional Course',
+    requiredCredits: 24.0,
+    sortOrder: 7,
+  ),
+  _DefaultGraduationCategory(
+    id: '0d19167e-7753-42c3-9677-fc01b2d2bd6c',
+    name: 'Free Elective',
+    requiredCredits: 30.0,
+    sortOrder: 8,
+  ),
+  _DefaultGraduationCategory(
+    id: '2bf8f749-83f9-4f38-a5c2-88ee3a2644dd',
+    name: 'Others',
+    sortOrder: 9,
+    isActive: false,
+  ),
+];
+
 class AcademicRepository {
   AcademicRepository(this.db);
   final AcademicDatabase db;
@@ -16,29 +96,32 @@ class AcademicRepository {
     if (settings == null) {
       await db
           .into(db.academicSettings)
-          .insert(AcademicSettingsCompanion.insert(id: 'academic'));
+          .insert(
+            AcademicSettingsCompanion.insert(
+              id: 'academic',
+              requiredCredits: const Value(128.0),
+            ),
+          );
     }
 
     final existing = await (db.select(
       db.graduationCategories,
     )..where((t) => t.deletedAt.isNull())).get();
     if (existing.isEmpty) {
-      const names = [
-        'Basic Core',
-        'Professional Course',
-        'Free Elective',
-        'General Education',
-        'Required Course',
-        'Other',
-      ];
-      for (var i = 0; i < names.length; i++) {
+      // Fresh installations start from the graduation requirements exported
+      // from the owner's current dashboard. Existing installations are never
+      // rewritten here because this block only runs with no active categories.
+      for (final category in _defaultGraduationCategories) {
         await db
             .into(db.graduationCategories)
             .insert(
               GraduationCategoriesCompanion.insert(
-                id: _uuid.v4(),
-                name: names[i],
-                sortOrder: Value(i),
+                id: category.id,
+                name: category.name,
+                requiredCredits: Value(category.requiredCredits),
+                description: Value(category.description),
+                sortOrder: Value(category.sortOrder),
+                isActive: Value(category.isActive),
               ),
             );
       }
