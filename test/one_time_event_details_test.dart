@@ -5,7 +5,9 @@ import 'package:personal_life_dashboard/features/class_schedule/domain/one_time_
 import 'package:personal_life_dashboard/features/class_schedule/presentation/one_time_event_details.dart';
 
 void main() {
-  testWidgets('event tap details show reminders and scrollable notes', (tester) async {
+  testWidgets('event details preserve notes and hide legacy reminders', (
+    tester,
+  ) async {
     final stamp = DateTime(2026, 9, 15, 10);
     final event = OneTimeEvent(
       id: 'details-event',
@@ -23,16 +25,15 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
-          home: Scaffold(
-            body: OneTimeEventDetails(initialEvent: event),
-          ),
+          home: Scaffold(body: OneTimeEventDetails(initialEvent: event)),
         ),
       ),
     );
     await tester.pump();
 
     expect(find.text('GSA meeting'), findsOneWidget);
-    expect(find.text('30 min before · 1 day before'), findsOneWidget);
+    expect(find.text('30 min before · 1 day before'), findsNothing);
+    expect(find.byIcon(Icons.notifications_active_outlined), findsNothing);
     expect(find.text('EECS 106'), findsOneWidget);
     expect(find.text('Edit'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);

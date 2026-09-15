@@ -27,11 +27,8 @@ class OneTimeEvent {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  /// Minutes before the timetable start at which a reminder should fire.
-  ///
-  /// `0` means at event time. Values are stored as data with the event so
-  /// backup/restore keeps the user's reminder choices even though the OS
-  /// notification schedule itself is device-local.
+  /// Legacy choices retained for backup compatibility, never exposed or
+  /// scheduled by Class Schedule. Tasks owns notifications from schema v4.
   final List<int> reminderMinutesBefore;
 
   NthuPeriodRange get periodRange => NthuPeriodRange(startPeriod, endPeriod);
@@ -71,8 +68,7 @@ class OneTimeEvent {
     specificTime: specificTime ?? this.specificTime,
     location: location ?? this.location,
     notes: notes ?? this.notes,
-    reminderMinutesBefore:
-        reminderMinutesBefore ?? this.reminderMinutesBefore,
+    reminderMinutesBefore: reminderMinutesBefore ?? this.reminderMinutesBefore,
     createdAt: createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );

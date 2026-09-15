@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/class_schedule/providers/academic_providers.dart';
+import '../../features/tasks/providers/task_providers.dart';
 import 'shell_state.dart';
 
 class SettingsDialog extends ConsumerStatefulWidget {
@@ -56,7 +57,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
               const SizedBox(height: 4),
               Text(
                 'Move your semesters, courses, schedule records, and one-time '
-                'events between devices without cloud sync. Downloaded NTHU '
+                'events, tasks, and reminders between devices without cloud sync. Downloaded NTHU '
                 'catalog data is not included.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
@@ -120,7 +121,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
       _showMessage(
         'Backup exported: ${backup.summary.courses} courses, '
         '${backup.summary.semesters} semesters, '
-        '${backup.summary.oneTimeEvents} one-time events.',
+        '${backup.summary.oneTimeEvents} one-time events, ${backup.summary.tasks} tasks.',
       );
     } catch (error) {
       if (mounted) _showMessage('Could not export backup: $error', error: true);
@@ -143,7 +144,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
           title: const Text('Replace local data?'),
           content: Text(
             'Importing ${file.name} will replace this device’s semesters, '
-            'courses, academic records, and one-time events. Your downloaded '
+            'courses, academic records, and one-time events. Backups containing tasks also replace tasks, reminders, and filters; older backups keep your tasks. Your downloaded '
             'NTHU catalog cache will be kept.\n\nThis cannot be undone unless '
             'you export a backup of this device first.',
           ),
@@ -169,6 +170,8 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
 
       ref.invalidate(academicSnapshotProvider);
       ref.invalidate(oneTimeEventsProvider);
+      ref.invalidate(taskFilterProvider);
+      ref.invalidate(taskNotificationSyncProvider);
 
       if (!mounted) return;
       _showMessage(
@@ -188,10 +191,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
   void _showMessage(String message, {bool error = false}) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 }

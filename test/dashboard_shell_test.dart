@@ -1,3 +1,8 @@
+import 'package:personal_life_dashboard/features/class_schedule/data/academic_database.dart';
+import 'package:personal_life_dashboard/features/tasks/domain/task_types.dart';
+import 'package:personal_life_dashboard/features/tasks/presentation/tasks_module.dart';
+import 'package:personal_life_dashboard/features/tasks/providers/task_providers.dart';
+import 'package:personal_life_dashboard/features/tasks/domain/task_logic.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,6 +32,15 @@ Future<void> pumpDashboard(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        taskCategoriesProvider.overrideWith(
+          (_) => Stream.value([
+            for (final e in defaultTaskCategoryColors.entries)
+              TaskCategoryRecord(name: e.key, color: e.value),
+          ]),
+        ),
+        tasksProvider.overrideWith((ref) => Stream.value(const <TaskBundle>[])),
+        taskFilterProvider.overrideWith(_TestTaskFilter.new),
+        taskNotificationSyncProvider.overrideWith((ref) async {}),
         academicSnapshotProvider.overrideWith(
           (ref) => Stream.value(data ?? emptyAcademicData()),
         ),
@@ -45,6 +59,12 @@ Finder module(String title) => title == 'Class Schedule'
     ? find.byWidgetPredicate(
         (widget) =>
             widget is ClassScheduleCard || widget is ClassScheduleModule,
+      )
+    : title == 'Tasks & Reminders'
+    ? find.byWidgetPredicate(
+        (widget) =>
+            widget is TasksDashboardCard ||
+            widget is TasksModule && !widget.compact,
       )
     : find.widgetWithText(ModulePlaceholder, title);
 
@@ -212,7 +232,7 @@ void main() {
   ) async {
     await pumpDashboard(tester);
     expect(find.byType(NavigationBar), findsNothing);
-    expect(find.byType(ModulePlaceholder), findsNWidgets(3));
+    expect(find.byType(ModulePlaceholder), findsNWidgets(2));
 
     final schedule = tester.getTopLeft(module('Class Schedule'));
     final tasks = tester.getTopLeft(module('Tasks & Reminders'));
@@ -239,7 +259,16 @@ void main() {
       tester,
     ) async {
       await pumpDashboard(tester, size: size);
-      expect(find.byType(Scrollable), findsNothing);
+      expect(
+        find
+            .byType(Scrollable)
+            .evaluate()
+            .where(
+              (e) =>
+                  e.findAncestorWidgetOfExactType<TasksDashboardCard>() == null,
+            ),
+        isEmpty,
+      );
       expect(find.byType(NavigationBar), findsNothing);
       expect(find.text('Your day, in one place.'), findsNothing);
       expect(find.text('Your week, a little clearer.'), findsNothing);
@@ -289,13 +318,20 @@ void main() {
       tester.getSize(module('Class Schedule')).height,
       greaterThan(initialHeight),
     );
-    expect(find.byType(Scrollable), findsNothing);
+    expect(
+      find
+          .byType(Scrollable)
+          .evaluate()
+          .where(
+            (e) =>
+                e.findAncestorWidgetOfExactType<TasksDashboardCard>() == null,
+          ),
+      isEmpty,
+    );
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('mobile navigation shows one placeholder per destination', (
-    tester,
-  ) async {
+  testWidgets('mobile navigation shows the selected module', (tester) async {
     await pumpDashboard(tester, size: const Size(390, 844));
     expect(module('Class Schedule'), findsOneWidget);
     expect(find.text('Today'), findsNothing);
@@ -318,7 +354,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.byType(ModulePlaceholder),
-        entry.key == 'Schedule' ? findsNothing : findsOneWidget,
+        entry.key == 'Schedule' || entry.key == 'Tasks'
+            ? findsNothing
+            : findsOneWidget,
       );
       expect(module(entry.value), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -334,7 +372,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 900);
     await tester.pumpAndSettle();
     expect(find.byType(NavigationBar), findsNothing);
-    expect(find.byType(ModulePlaceholder), findsNWidgets(3));
+    expect(find.byType(ModulePlaceholder), findsNWidgets(2));
     tester.view.physicalSize = const Size(390, 844);
     await tester.pumpAndSettle();
     expect(module('Tasks & Reminders'), findsOneWidget);
@@ -405,7 +443,16 @@ void main() {
       await tester.tap(find.text('Done'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
-      expect(find.byType(Scrollable), findsNothing);
+      expect(
+        find
+            .byType(Scrollable)
+            .evaluate()
+            .where(
+              (e) =>
+                  e.findAncestorWidgetOfExactType<TasksDashboardCard>() == null,
+            ),
+        isEmpty,
+      );
       await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
       expect(
@@ -442,4 +489,9 @@ void main() {
       }
     });
   }
+}
+
+class _TestTaskFilter extends TaskFilterNotifier {
+  @override
+  Future<TaskFilter> build() async => const TaskFilter();
 }

@@ -1,0 +1,188 @@
+import 'package:flutter/material.dart';
+
+import '../domain/task_logic.dart';
+import '../domain/task_types.dart';
+import 'task_editor.dart';
+
+class TaskFilterDialog extends StatefulWidget {
+  const TaskFilterDialog({
+    required this.filter,
+    required this.categories,
+    super.key,
+  });
+  final TaskFilter filter;
+  final List<String> categories;
+  @override
+  State<TaskFilterDialog> createState() => _TaskFilterDialogState();
+}
+
+class _TaskFilterDialogState extends State<TaskFilterDialog> {
+  late Set<String> categories;
+  late Set<TaskPriority> priorities;
+  late Set<TaskStatus> statuses;
+  late DuePeriod due;
+  DateTime? start, end;
+  late bool overdue, noDeadline;
+  int? limit;
+
+  @override
+  void initState() {
+    super.initState();
+    read(widget.filter);
+  }
+
+  void read(TaskFilter f) {
+    limit = f.limit;
+    categories = {...f.categories};
+    priorities = {...f.priorities};
+    statuses = {...f.statuses};
+    due = f.duePeriod;
+    start = f.start;
+    end = f.end;
+    overdue = f.includeOverdue;
+    noDeadline = f.includeNoDeadline;
+  }
+
+  @override
+  Widget build(BuildContext context) => TaskTypography(
+    child: AlertDialog(
+      title: const Text('Filter tasks'),
+      scrollable: true,
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButtonFormField<int>(
+              isExpanded: true,
+              itemHeight: null,
+              key: ValueKey(limit),
+              initialValue: limit ?? 0,
+              decoration: const InputDecoration(
+                labelText: 'Agenda upcoming tasks',
+              ),
+              items: [
+                for (final n in [5, 10, 20, 0])
+                  DropdownMenuItem(
+                    value: n,
+                    child: Text(n == 0 ? 'All upcoming' : 'Next $n'),
+                  ),
+              ],
+              onChanged: (v) => setState(() => limit = v == 0 ? null : v),
+            ),
+            const SizedBox(height: 16),
+            const Text('Categories · no selection means all'),
+            chips(widget.categories, categories, (v) => v),
+            const SizedBox(height: 12),
+            const Text('Priorities · no selection means all'),
+            chips(TaskPriority.values, priorities, (v) => v.label),
+            const SizedBox(height: 12),
+            const Text('Statuses · select at least one'),
+            chips(TaskStatus.values, statuses, (v) => v.label),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<DuePeriod>(
+              initialValue: due,
+              key: ValueKey(due),
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Due period'),
+              items: [
+                for (final period in DuePeriod.values)
+                  DropdownMenuItem(value: period, child: Text(period.label)),
+              ],
+              onChanged: (v) => setState(() => due = v!),
+            ),
+            if (due == DuePeriod.custom)
+              TextButton.icon(
+                icon: const Icon(Icons.date_range),
+                label: Text(
+                  start == null || end == null
+                      ? 'Choose date range'
+                      : '${taskDateLabel(start!)} – ${taskDateLabel(end!)}',
+                ),
+                onPressed: () async {
+                  final range = await showDateRangePicker(
+                    context: context,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2200, 12, 31),
+                    initialDateRange: start != null && end != null
+                        ? DateTimeRange(start: start!, end: end!)
+                        : null,
+                  );
+                  if (range != null && mounted) {
+                    setState(() {
+                      start = range.start;
+                      end = range.end;
+                    });
+                  }
+                },
+              ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Include overdue tasks'),
+              value: overdue,
+              onChanged: (v) => setState(() => overdue = v!),
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Include no-deadline tasks'),
+              value: noDeadline,
+              onChanged: (v) => setState(() => noDeadline = v!),
+            ),
+            const Text(
+              'These two sections stay visible outside the selected due period and do not count toward the upcoming limit.',
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => setState(() => read(const TaskFilter())),
+          child: const Text('Reset'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed:
+              statuses.isEmpty ||
+                  due == DuePeriod.custom && (start == null || end == null)
+              ? null
+              : () => Navigator.pop(
+                  context,
+                  TaskFilter(
+                    categories: categories,
+                    priorities: priorities,
+                    statuses: statuses,
+                    duePeriod: due,
+                    start: start,
+                    end: end,
+                    includeOverdue: overdue,
+                    includeNoDeadline: noDeadline,
+                    search: widget.filter.search,
+                    limit: limit,
+                  ),
+                ),
+          child: const Text('Apply'),
+        ),
+      ],
+    ),
+  );
+
+  Widget chips<T>(List<T> values, Set<T> selected, String Function(T) label) =>
+      Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          for (final value in values)
+            FilterChip(
+              label: Text(label(value)),
+              selected: selected.contains(value),
+              onSelected: (v) => setState(
+                () => v ? selected.add(value) : selected.remove(value),
+              ),
+            ),
+        ],
+      );
+}

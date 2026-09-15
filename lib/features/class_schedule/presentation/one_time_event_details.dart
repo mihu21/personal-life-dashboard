@@ -23,9 +23,8 @@ class OneTimeEventDetails extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final loaded = ref.watch(oneTimeEventsProvider).asData?.value;
-    final event = loaded
-            ?.where((item) => item.id == initialEvent.id)
-            .firstOrNull ??
+    final event =
+        loaded?.where((item) => item.id == initialEvent.id).firstOrNull ??
         initialEvent;
     final start = nthuPeriod(event.startPeriod);
     final end = nthuPeriod(event.endPeriod);
@@ -35,16 +34,7 @@ class OneTimeEventDetails extends ConsumerWidget {
     final dayName = nthuDayNames[event.date.weekday - 1];
 
     return AlertDialog(
-      title: Row(
-        children: [
-          Expanded(child: Text(event.title)),
-          if (event.reminderMinutesBefore.isNotEmpty)
-            const Padding(
-              padding: EdgeInsets.only(left: 8),
-              child: Icon(Icons.notifications_active_outlined, size: 20),
-            ),
-        ],
-      ),
+      title: Row(children: [Expanded(child: Text(event.title))]),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -67,16 +57,6 @@ class OneTimeEventDetails extends ConsumerWidget {
                   icon: Icons.location_on_outlined,
                   label: event.location.trim(),
                 ),
-              _DetailRow(
-                icon: event.reminderMinutesBefore.isEmpty
-                    ? Icons.notifications_none_outlined
-                    : Icons.notifications_active_outlined,
-                label: event.reminderMinutesBefore.isEmpty
-                    ? 'No reminders'
-                    : (event.reminderMinutesBefore.toList()..sort())
-                        .map(reminderLabel)
-                        .join(' · '),
-              ),
               const SizedBox(height: 10),
               Text('Notes', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 6),
@@ -138,9 +118,7 @@ class OneTimeEventDetails extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete event?'),
-        content: Text(
-          'Delete “${event.title}”? Its scheduled reminders will also be cancelled.',
-        ),
+        content: Text('Delete “${event.title}”?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -156,22 +134,11 @@ class OneTimeEventDetails extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
 
     final repository = ref.read(oneTimeEventRepositoryProvider);
-    String? notificationWarning;
     try {
       await repository.delete(event.id);
-      try {
-        await ref.read(eventNotificationServiceProvider).cancelEvent(event);
-      } catch (error) {
-        notificationWarning =
-            'Event deleted, but an old system reminder could not be cancelled: $error';
-      }
       ref.invalidate(oneTimeEventsProvider);
       if (!context.mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
-      if (notificationWarning != null) {
-        messenger.showSnackBar(SnackBar(content: Text(notificationWarning)));
-      }
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

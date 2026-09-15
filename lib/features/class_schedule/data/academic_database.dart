@@ -3,6 +3,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../domain/academic_types.dart';
+import '../../tasks/domain/task_types.dart';
 
 part 'academic_database.g.dart';
 
@@ -150,6 +151,54 @@ class NthuCatalogMeetings extends AuditedTable {
   TextColumn get location => text()();
 }
 
+// Task data shares the existing database. Course links are deliberately soft:
+// academic backup restore replaces course rows, and must never delete tasks.
+class TaskRecords extends AuditedTable {
+  TextColumn get title => text()();
+  TextColumn get notes => text().withDefault(const Constant(''))();
+  TextColumn get category => text().withDefault(const Constant('Personal'))();
+  TextColumn get courseId => text().nullable()();
+  DateTimeColumn get deadline => dateTime().nullable()();
+  BoolColumn get hasDeadlineTime =>
+      boolean().withDefault(const Constant(false))();
+  TextColumn get priority => textEnum<TaskPriority>()();
+  TextColumn get status => textEnum<TaskStatus>()();
+  DateTimeColumn get completedAt => dateTime().nullable()();
+  TextColumn get repeatUnit => textEnum<RepeatUnit>()();
+  IntColumn get repeatInterval => integer().withDefault(const Constant(1))();
+  IntColumn get repeatAnchorDay => integer().nullable()();
+  TextColumn get previousOccurrenceId => text().nullable().unique()();
+}
+
+class TaskReminders extends Table {
+  // SQLite assigns stable, collision-free platform notification identifiers.
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get taskId => text().references(TaskRecords, #id)();
+  IntColumn get minutesBefore => integer().nullable()();
+  DateTimeColumn get customAt => dateTime().nullable()();
+  DateTimeColumn get snoozedUntil => dateTime().nullable()();
+
+  @override
+  List<String> get customConstraints => [
+    'CHECK ((minutes_before IS NULL) != (custom_at IS NULL))',
+    'CHECK (minutes_before IS NULL OR minutes_before >= 0)',
+  ];
+}
+
+class TaskPreferences extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
+class TaskCategoryRecords extends Table {
+  TextColumn get name => text()();
+  IntColumn get color => integer()();
+  @override
+  Set<Column> get primaryKey => {name};
+}
+
 @DriftDatabase(
   tables: [
     Semesters,
@@ -163,6 +212,10 @@ class NthuCatalogMeetings extends AuditedTable {
     NthuCatalogTerms,
     NthuCatalogCourses,
     NthuCatalogMeetings,
+    TaskRecords,
+    TaskReminders,
+    TaskPreferences,
+    TaskCategoryRecords,
   ],
 )
 class AcademicDatabase extends _$AcademicDatabase {
@@ -178,12 +231,28 @@ class AcademicDatabase extends _$AcademicDatabase {
       );
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
+
+  Future<void> seedTaskCategories() async {
+    for (final entry in defaultTaskCategoryColors.entries) {
+      await into(taskCategoryRecords).insert(
+        TaskCategoryRecordsCompanion.insert(
+          name: entry.key,
+          color: entry.value,
+        ),
+        mode: InsertMode.insertOrIgnore,
+      );
+    }
+    await customStatement(
+      'INSERT OR IGNORE INTO task_category_records(name, color) SELECT DISTINCT category, 4289111737 FROM task_records',
+    );
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
+      await seedTaskCategories();
       await customStatement(
         "CREATE UNIQUE INDEX one_current_semester ON semesters(status) WHERE status = 'current' AND deleted_at IS NULL",
       );
@@ -246,6 +315,21 @@ class AcademicDatabase extends _$AcademicDatabase {
           SET source_type = 'stale:' || source_type
           WHERE source_type IN ('currentJson', 'historicalArchive')
         ''');
+      }
+      if (from < 4) {
+        await m.createTable(taskRecords);
+        await m.createTable(taskReminders);
+        await m.createTable(taskPreferences);
+      }
+      if (from < 5) {
+        await m.createTable(taskCategoryRecords);
+        await customStatement(
+          "UPDATE task_records SET status = 'active' WHERE status IN ('todo', 'inProgress')",
+        );
+        await customStatement(
+          "UPDATE task_records SET priority = 'high' WHERE priority = 'urgent'",
+        );
+        await seedTaskCategories();
       }
     },
     beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../features/class_schedule/presentation/class_schedule_card.dart';
 import '../../features/shopping/presentation/shopping_placeholder.dart';
 import '../../features/spending/presentation/spending_placeholder.dart';
-import '../../features/tasks/presentation/tasks_placeholder.dart';
+import '../../features/tasks/presentation/tasks_module.dart';
 import 'settings_dialog.dart';
 
 /// Viewport-bound desktop composition. Each feature receives a bounded panel.
@@ -29,7 +29,7 @@ class DesktopDashboard extends StatelessWidget {
                     spacing: 8,
                     children: const [
                       Expanded(child: ClassScheduleCard()),
-                      Expanded(child: TasksPlaceholder(desktop: true)),
+                      Expanded(child: TasksDashboardCard()),
                     ],
                   ),
                 ),

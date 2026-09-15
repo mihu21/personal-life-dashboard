@@ -53,8 +53,8 @@ void main() {
     expect(find.text('Event title'), findsOneWidget);
     expect(find.text('Start period'), findsOneWidget);
     expect(find.text('End period'), findsOneWidget);
-    expect(find.text('Reminders'), findsOneWidget);
-    expect(find.text('Add reminder'), findsOneWidget);
+    expect(find.text('Reminders'), findsNothing);
+    expect(find.text('Add reminder'), findsNothing);
     expect(
       find.descendant(
         of: find.byType(OneTimeEventEditor),
@@ -81,7 +81,7 @@ void main() {
       expect(find.text('Add event'), findsOneWidget);
       expect(find.text('Start period'), findsOneWidget);
       expect(find.text('End period'), findsOneWidget);
-      expect(find.text('Reminders'), findsOneWidget);
+      expect(find.text('Reminders'), findsNothing);
       expect(tester.takeException(), isNull);
 
       await tester.ensureVisible(find.text('Cancel'));

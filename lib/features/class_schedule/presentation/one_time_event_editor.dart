@@ -39,7 +39,6 @@ class _OneTimeEventEditorState extends ConsumerState<OneTimeEventEditor> {
   late DateTime date;
   late String startPeriod;
   late String endPeriod;
-  late List<int> reminders;
   bool saving = false;
 
   @override
@@ -55,7 +54,6 @@ class _OneTimeEventEditorState extends ConsumerState<OneTimeEventEditor> {
     date = dateOnly(event?.date ?? widget.initialDate ?? DateTime.now());
     startPeriod = event?.startPeriod ?? '1';
     endPeriod = event?.endPeriod ?? event?.startPeriod ?? '1';
-    reminders = [...?event?.reminderMinutesBefore]..sort();
   }
 
   @override
@@ -104,42 +102,17 @@ class _OneTimeEventEditorState extends ConsumerState<OneTimeEventEditor> {
       specificTime: specificTimeController.text.trim(),
       location: locationController.text.trim(),
       notes: notesController.text.trim(),
-      reminderMinutesBefore: reminders.toSet().toList()..sort(),
+      // Legacy choices are preserved but no longer scheduled.
+      reminderMinutesBefore: existing?.reminderMinutesBefore ?? const [],
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     );
 
     try {
-      final notifications = ref.read(eventNotificationServiceProvider);
-      var remindersEnabled = true;
-      if (event.reminderMinutesBefore.isNotEmpty) {
-        remindersEnabled = await notifications.ensurePermission();
-      }
-
-      final repository = ref.read(oneTimeEventRepositoryProvider);
-      await repository.upsert(event);
-      String? reminderWarning;
-      try {
-        await notifications.replaceEvent(
-          previous: existing,
-          event: event,
-          scheduleReminders: remindersEnabled,
-        );
-        if (!remindersEnabled && event.reminderMinutesBefore.isNotEmpty) {
-          reminderWarning =
-              'Event saved, but notifications are disabled. Enable notifications in system settings for reminders to appear.';
-        }
-      } catch (error) {
-        reminderWarning =
-            'Event saved, but its reminder could not be scheduled: $error';
-      }
+      await ref.read(oneTimeEventRepositoryProvider).upsert(event);
       ref.invalidate(oneTimeEventsProvider);
       if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
         Navigator.of(context).pop(true);
-        if (reminderWarning != null) {
-          messenger.showSnackBar(SnackBar(content: Text(reminderWarning)));
-        }
       }
     } catch (error) {
       if (mounted) {
@@ -148,171 +121,6 @@ class _OneTimeEventEditorState extends ConsumerState<OneTimeEventEditor> {
       }
     }
   }
-
-  Future<void> _addReminder() async {
-    final choice = await showDialog<int>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Add reminder'),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, -1),
-            child: const Text('None'),
-          ),
-          for (final value in const [0, 5, 10, 30, 60, 1440])
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, value),
-              child: Text(reminderLabel(value)),
-            ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, -2),
-            child: const Text('Custom…'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || choice == null) return;
-    if (choice == -1) {
-      setState(reminders.clear);
-      return;
-    }
-
-    var minutes = choice;
-    if (choice == -2) {
-      final custom = await _customReminder();
-      if (!mounted || custom == null) return;
-      minutes = custom;
-    }
-    if (!reminders.contains(minutes)) {
-      setState(() {
-        reminders.add(minutes);
-        reminders.sort();
-      });
-    }
-  }
-
-  Future<int?> _customReminder() async {
-    final controller = TextEditingController();
-    var unit = 'minutes';
-    String? error;
-    final result = await showDialog<int>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Custom reminder'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Amount',
-                  errorText: error,
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: unit,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Unit',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'minutes', child: Text('Minutes')),
-                  DropdownMenuItem(value: 'hours', child: Text('Hours')),
-                  DropdownMenuItem(value: 'days', child: Text('Days')),
-                ],
-                onChanged: (value) {
-                  if (value != null) setDialogState(() => unit = value);
-                },
-              ),
-              const SizedBox(height: 8),
-              const Text('The reminder must be before the event starts.'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final amount = int.tryParse(controller.text.trim());
-                if (amount == null || amount <= 0) {
-                  setDialogState(() => error = 'Enter a number greater than 0.');
-                  return;
-                }
-                final multiplier = switch (unit) {
-                  'hours' => 60,
-                  'days' => 24 * 60,
-                  _ => 1,
-                };
-                Navigator.pop(context, amount * multiplier);
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        ),
-      ),
-    );
-    controller.dispose();
-    return result;
-  }
-
-  Widget _reminderSection() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Row(
-        children: [
-          Icon(
-            reminders.isEmpty
-                ? Icons.notifications_none_outlined
-                : Icons.notifications_active_outlined,
-            size: 18,
-          ),
-          const SizedBox(width: 6),
-          Text('Reminders', style: Theme.of(context).textTheme.titleSmall),
-        ],
-      ),
-      SizedBox(height: AppDensity.tinyGap(context)),
-      if (reminders.isEmpty)
-        Text(
-          'None',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        )
-      else
-        Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          children: [
-            for (final value in reminders)
-              InputChip(
-                label: Text(reminderLabel(value)),
-                onDeleted: saving
-                    ? null
-                    : () => setState(() => reminders.remove(value)),
-              ),
-          ],
-        ),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: OutlinedButton.icon(
-          onPressed: saving ? null : _addReminder,
-          icon: const Icon(Icons.add_alert_outlined, size: 18),
-          label: const Text('Add reminder'),
-        ),
-      ),
-    ],
-  );
 
   void _message(String message) {
     ScaffoldMessenger.of(
@@ -512,8 +320,6 @@ class _OneTimeEventEditorState extends ConsumerState<OneTimeEventEditor> {
                           isDense: true,
                         ),
                       ),
-                      SizedBox(height: AppDensity.formGap(context)),
-                      _reminderSection(),
                       SizedBox(height: AppDensity.formGap(context)),
                       TextField(
                         controller: notesController,

@@ -1,7 +1,7 @@
 # Personal Life Dashboard
 
 A local-first Flutter dashboard for Windows and Android. The **Class Schedule
-module is functional**; Today summary, Tasks & Reminders, Shopping, and Spending
+module and Tasks & Reminders are functional**; Today summary, Shopping, and Spending
 remain placeholders. Material 3 and Riverpod support light, dark, and system themes.
 
 ## Dashboard layout
@@ -15,7 +15,7 @@ Use its expand button to open the full schedule.
 On narrower windows and mobile, bottom navigation remains Schedule, Tasks,
 Shopping, and Spending. Schedule has Schedule / Progress / History / Planning
 sections and a Manage records button. Long lists and the full timetable scroll
-within the module. The other three modules retain their placeholder presentation.
+within the module. Tasks opens Agenda / Week / Month; Shopping and Spending retain their placeholder presentation.
 
 ## First use
 
@@ -60,7 +60,7 @@ creation/update timestamps and deletion tombstones. A singleton academic setting
 stores the overall target and setup preference. The database opens in a background
 isolate through `drift_flutter`; Riverpod streams refresh dependent views.
 
-Schema version is 1. Generated Drift code is included. When changing the schema,
+Schema version is 5. The v4 migration adds tasks, reminders and preferences. The v5 migration adds editable task categories/colors and converts old task states to Active and Urgent priority to High without changing academic records. Generated Drift code is included. When changing the schema,
 add a migration and regenerate code; do not delete the database to migrate user data.
 For a manual backup, close the app and copy the SQLite file and any sidecar files
 from the application-support directory together.
@@ -76,7 +76,7 @@ The desktop card is intentionally a compact reference. Open the full module for
 all classes, editing, history, and planning. The clock refreshes every 30 seconds.
 Tab/theme preferences remain in memory, as in the approved shell.
 
-Tasks, Shopping, Spending, cloud sync, Firebase, and unrelated features are not
+Shopping, Spending, cloud sync, Firebase, and unrelated features are not
 implemented.
 
 ## Run
@@ -135,7 +135,8 @@ lib/features/class_schedule/
   domain/                         # Enums, drafts, schedule/credit/conflict functions
   providers/                      # Database/repository streams and clock
   presentation/                   # Dashboard card, full module, editors and views
-lib/features/{tasks,shopping,spending}/  # Placeholders only
+lib/features/tasks/               # Task database repository, reminder engine, filters and calendars
+lib/features/{shopping,spending}/  # Placeholders only
 lib/shared/widgets/               # Shared placeholder components
 ```
 
@@ -149,3 +150,34 @@ are centralized in the repository.
 - `docs/PROJECT_SCOPE.md` — scope and non-goals
 - `docs/ARCHITECTURE_DECISIONS.md` — technical decisions
 - `docs/CLASS_SCHEDULE_IMPLEMENTATION.md` — stage checkpoints and commit boundaries
+
+## Tasks & Reminders
+
+Tasks has Agenda (default), Week, and Month views. Create tasks with notes,
+editable categories/colors, optional links to current active courses, Low/Medium/High
+priority, Active/Completed status, and timed,
+date-only, or absent deadlines. Search and saved multi-select filters work together.
+Agenda offers Next 5/10/20/All upcoming tasks, with overdue and no-deadline sections
+outside that count. Week and Month display task deadlines only and fill the available
+height. Category colors and 1/2/3 bars identify priority. The small card includes
+view and filter controls. Click tasks to see details before editing or completing.
+
+Reminders are independent of deadlines: use multiple deadline presets or custom
+absolute times. Snooze is available in the task editor; save to apply it. Daily,
+weekly, monthly, and interval-based repeats create one successor on completion,
+keeping completed history. Missed occurrences are skipped.
+
+Tasks now owns the existing local notification infrastructure on Android and
+Windows. On startup/resume and task changes, the app cancels obsolete notifications
+and rebuilds the future schedule from SQLite. Android uses notification permission
+and inexact alarms; system delivery can be delayed. Scheduling failures appear in
+Tasks with a retry action. No new dependencies were added.
+
+Class Schedule still creates/edits classes and manual events. Its reminder controls
+and scheduler are retired. Legacy event reminder values stay in the original JSON
+file and backups for compatibility; they are never scheduled or turned into tasks.
+Version 3 backups include tasks/reminders/filters/category colors; versions 1 and 2
+remain supported. Version 1 imports preserve current tasks.
+
+See [implementation and acceptance review](docs/TASKS_AND_REMINDERS_IMPLEMENTATION.md)
+for migration, recurrence, validation, limitations, and the full changed-file list.

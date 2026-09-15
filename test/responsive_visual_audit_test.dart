@@ -1,3 +1,6 @@
+import 'package:personal_life_dashboard/features/tasks/domain/task_types.dart';
+import 'package:personal_life_dashboard/features/tasks/providers/task_providers.dart';
+import 'package:personal_life_dashboard/features/tasks/domain/task_logic.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -140,6 +143,17 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              taskFilterProvider.overrideWith(_AuditTaskFilter.new),
+              taskCategoriesProvider.overrideWith(
+                (_) => Stream.value([
+                  for (final e in defaultTaskCategoryColors.entries)
+                    TaskCategoryRecord(name: e.key, color: e.value),
+                ]),
+              ),
+              tasksProvider.overrideWith(
+                (ref) => Stream.value(const <TaskBundle>[]),
+              ),
+              taskNotificationSyncProvider.overrideWith((ref) async {}),
               nthuCatalogRepositoryProvider.overrideWithValue(catalog),
               academicSnapshotProvider.overrideWith(
                 (ref) => Stream.value(data),
@@ -349,4 +363,13 @@ class _AuditCatalog extends NthuCatalogRepository {
         ],
       ),
   ].where((course) => course.matches(query)).toList();
+}
+
+class _AuditTaskFilter extends TaskFilterNotifier {
+  @override
+  Future<TaskFilter> build() async => const TaskFilter();
+  @override
+  Future<void> apply(TaskFilter filter) async {
+    state = AsyncData(filter);
+  }
 }

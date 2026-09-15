@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/class_schedule/presentation/class_schedule_module.dart';
 import '../../features/shopping/presentation/shopping_placeholder.dart';
 import '../../features/spending/presentation/spending_placeholder.dart';
-import '../../features/tasks/presentation/tasks_placeholder.dart';
+import '../../features/tasks/presentation/tasks_module.dart';
+import '../../features/tasks/providers/task_providers.dart';
 import '../theme/app_density.dart';
 import 'desktop_dashboard.dart';
 import 'settings_dialog.dart';
@@ -19,6 +20,7 @@ class DashboardShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final selected = ref.watch(selectedModuleProvider);
+    ref.watch(taskNotificationSyncProvider);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -43,7 +45,9 @@ class DashboardShell extends ConsumerWidget {
                           'Personal space',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: denseMobile ? theme.textTheme.titleMedium : null,
+                          style: denseMobile
+                              ? theme.textTheme.titleMedium
+                              : null,
                         ),
                       ),
                     ],
@@ -68,6 +72,8 @@ class DashboardShell extends ConsumerWidget {
                 ? const DesktopDashboard()
                 : selected == DashboardModule.schedule
                 ? const ClassScheduleModule()
+                : selected == DashboardModule.tasks
+                ? const TasksModule()
                 : SingleChildScrollView(
                     key: PageStorageKey(selected.name),
                     padding: EdgeInsets.all(denseMobile ? 6 : 10),
@@ -110,9 +116,7 @@ class DashboardShell extends ConsumerWidget {
                   destinations: const [
                     NavigationDestination(
                       icon: _TightNavIcon(Icons.calendar_month_outlined),
-                      selectedIcon: _TightNavIcon(
-                        Icons.calendar_month_rounded,
-                      ),
+                      selectedIcon: _TightNavIcon(Icons.calendar_month_rounded),
                       label: 'Schedule',
                     ),
                     NavigationDestination(
@@ -151,7 +155,7 @@ class DashboardShell extends ConsumerWidget {
 
   static Widget _page(DashboardModule module) => switch (module) {
     DashboardModule.schedule => const ClassScheduleModule(),
-    DashboardModule.tasks => const TasksPlaceholder(),
+    DashboardModule.tasks => const TasksModule(),
     DashboardModule.shopping => const ShoppingPlaceholder(),
     DashboardModule.spending => const SpendingPlaceholder(),
   };
@@ -163,8 +167,6 @@ class _TightNavIcon extends StatelessWidget {
   final IconData icon;
 
   @override
-  Widget build(BuildContext context) => Transform.translate(
-    offset: const Offset(0, 2),
-    child: Icon(icon),
-  );
+  Widget build(BuildContext context) =>
+      Transform.translate(offset: const Offset(0, 2), child: Icon(icon));
 }
