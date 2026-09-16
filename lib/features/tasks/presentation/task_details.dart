@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../class_schedule/data/academic_database.dart';
 import '../../class_schedule/providers/academic_providers.dart';
+import '../../lms/providers/lms_providers.dart';
 import '../domain/task_logic.dart';
 import '../domain/task_types.dart';
 import '../providers/task_providers.dart';
@@ -159,34 +161,7 @@ class _TaskDetailsState extends ConsumerState<TaskDetails> {
             child: const Text('Close'),
           ),
           TextButton(
-            onPressed: busy
-                ? null
-                : () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Delete task?'),
-                        content: Text(
-                          'Delete “${t.title}” and cancel its reminders?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel'),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Delete'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirmed == true && mounted) {
-                      await act(
-                        () => ref.read(taskRepositoryProvider).delete(t.id),
-                      );
-                    }
-                  },
+            onPressed: busy ? null : () => _deleteTask(t),
             child: const Text('Delete task'),
           ),
           OutlinedButton(
@@ -196,6 +171,67 @@ class _TaskDetailsState extends ConsumerState<TaskDetails> {
         ],
       ),
     );
+  }
+
+  Future<void> _deleteTask(TaskRecord task) async {
+    final syncService = ref.read(lmsTaskSyncServiceProvider);
+    final imported = await syncService.isImportedTask(task.id);
+    if (!mounted) {
+      return;
+    }
+
+    if (!imported) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Delete task?'),
+          content: Text('Delete “${task.title}” and cancel its reminders?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true && mounted) {
+        await act(() => ref.read(taskRepositoryProvider).delete(task.id));
+      }
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete LMS task?'),
+        content: Text(
+          'Delete “${task.title}”?\n\n'
+          'It will stay deleted during future LMS syncs. You can restore it later from Settings → NTHU LMS → Deleted LMS tasks.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    await act(() async {
+      await syncService.deleteImportedTask(task.id);
+      ref.invalidate(ignoredLmsTasksProvider);
+    });
   }
 
   Future<void> setCompleted(bool completed) async {

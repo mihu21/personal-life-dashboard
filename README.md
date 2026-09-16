@@ -87,6 +87,8 @@ Android SDK and an emulator or USB-debugging device. Check `flutter doctor -v`.
 
 Windows, from PowerShell:
 
+The eeclass preview uses `flutter_inappwebview`. Windows builds need `nuget.exe` on PATH, and the device needs the Microsoft Edge WebView2 Runtime. The app checks for WebView2 before opening NTHU sign-in and stores its browser profile under the app-support directory instead of beside the executable.
+
 ```powershell
 cd C:\Users\MiHu\Documents\personal-life-dashboard
 flutter pub get

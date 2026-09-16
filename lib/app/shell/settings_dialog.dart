@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/class_schedule/providers/academic_providers.dart';
+import '../../features/lms/presentation/lms_connections_dialog.dart';
 import '../../features/tasks/providers/task_providers.dart';
 import 'shell_state.dart';
 
@@ -50,6 +51,10 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
                     ),
                 ],
               ),
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              const NthuLmsSettingsSection(),
               const SizedBox(height: 12),
               const Divider(),
               const SizedBox(height: 8),

@@ -51,7 +51,7 @@ class LocalBackupService {
   final AcademicDatabase db;
   final OneTimeEventRepository oneTimeEvents;
 
-  static const int formatVersion = 3;
+  static const int formatVersion = 5;
   static const String formatName = 'personal-life-dashboard-backup';
 
   Future<LocalBackupArchive> createBackup() async {
@@ -69,11 +69,28 @@ class LocalBackupService {
       final reminders = await db.select(db.taskReminders).get();
       final taskPreferences = await db.select(db.taskPreferences).get();
       final taskCategories = await db.select(db.taskCategoryRecords).get();
+      final taskExternalLinks = await db.customSelect('''
+        SELECT task_id AS taskId,
+               provider,
+               account_scope AS accountScope,
+               resource_type AS resourceType,
+               external_id AS externalId,
+               external_url AS externalUrl,
+               remote_course_id AS remoteCourseId,
+               remote_course_name AS remoteCourseName,
+               last_remote_title AS lastRemoteTitle,
+               last_remote_deadline AS lastRemoteDeadline,
+               last_remote_has_deadline_time AS lastRemoteHasDeadlineTime,
+               last_seen_at AS lastSeenAt,
+               ignored
+        FROM task_external_links
+      ''').get();
       return {
         'taskCategories': [for (final row in taskCategories) row.toJson()],
         'tasks': [for (final row in tasks) row.toJson()],
         'taskReminders': [for (final row in reminders) row.toJson()],
         'taskPreferences': [for (final row in taskPreferences) row.toJson()],
+        'taskExternalLinks': [for (final row in taskExternalLinks) row.data],
         'semesters': [for (final row in semesters) row.toJson()],
         'graduationCategories': [for (final row in categories) row.toJson()],
         'courses': [
@@ -114,6 +131,7 @@ class LocalBackupService {
         'academicRecords': true,
         'oneTimeEvents': true,
         'tasks': true,
+        'taskExternalLinks': true,
         'nthuCatalogCache': false,
       },
       'counts': {
@@ -125,6 +143,7 @@ class LocalBackupService {
         'tags': summary.tags,
         'oneTimeEvents': summary.oneTimeEvents,
         'tasks': summary.tasks,
+        'taskExternalLinks': _listLength(academic['taskExternalLinks']),
       },
     };
 
@@ -159,7 +178,7 @@ class LocalBackupService {
     }
     final version = manifest['formatVersion'];
     if (version is! num ||
-        !const [1, 2, formatVersion].contains(version.toInt())) {
+        !const [1, 2, 3, 4, formatVersion].contains(version.toInt())) {
       throw FormatException(
         'Unsupported backup version: ${version ?? 'unknown'}.',
       );
@@ -245,6 +264,9 @@ class LocalBackupService {
             'taskCategories',
           ).map(TaskCategoryRecord.fromJson).toList()
         : <TaskCategoryRecord>[];
+    final taskExternalLinks = version.toInt() >= 4
+        ? _records(academic, 'taskExternalLinks')
+        : <Map<String, dynamic>>[];
     if (version.toInt() >= 3 &&
         (taskCategories.isEmpty ||
             taskCategories.any(
@@ -278,6 +300,57 @@ class LocalBackupService {
         );
       }
     }
+    final taskIds = tasks.map((task) => task.id).toSet();
+    final externalIdentities = <String>{};
+    final linkedTaskIds = <String>{};
+    for (final link in taskExternalLinks) {
+      final taskId = link['taskId'];
+      final provider = link['provider'];
+      final accountScope = link['accountScope'];
+      final resourceType = link['resourceType'];
+      final externalId = link['externalId'];
+      final externalUrl = link['externalUrl'];
+      final remoteCourseId = link['remoteCourseId'];
+      final remoteCourseName = link['remoteCourseName'];
+      final lastRemoteTitle = link['lastRemoteTitle'];
+      final lastRemoteDeadline = link['lastRemoteDeadline'];
+      final lastSeenAt = link['lastSeenAt'];
+      final hasTime = link['lastRemoteHasDeadlineTime'];
+      final ignored = version.toInt() >= 5 ? link['ignored'] : 0;
+      final identity =
+          '$provider\u0000$accountScope\u0000$resourceType\u0000$externalId';
+      if (taskId is! String ||
+          !taskIds.contains(taskId) ||
+          provider is! String ||
+          provider.trim().isEmpty ||
+          accountScope is! String ||
+          accountScope.trim().isEmpty ||
+          resourceType is! String ||
+          resourceType.trim().isEmpty ||
+          externalId is! String ||
+          externalId.trim().isEmpty ||
+          externalUrl is! String ||
+          externalUrl.trim().isEmpty ||
+          (remoteCourseId != null && remoteCourseId is! String) ||
+          remoteCourseName is! String ||
+          remoteCourseName.trim().isEmpty ||
+          lastRemoteTitle is! String ||
+          lastRemoteTitle.trim().isEmpty ||
+          lastRemoteDeadline is! String ||
+          DateTime.tryParse(lastRemoteDeadline) == null ||
+          lastSeenAt is! String ||
+          DateTime.tryParse(lastSeenAt) == null ||
+          hasTime is! int ||
+          (hasTime != 0 && hasTime != 1) ||
+          ignored is! int ||
+          (ignored != 0 && ignored != 1) ||
+          !externalIdentities.add(identity) ||
+          !linkedTaskIds.add(taskId)) {
+        throw const FormatException(
+          'Backup contains invalid imported-task metadata.',
+        );
+      }
+    }
     final previousEvents = await oneTimeEvents.load();
     await oneTimeEvents.replaceAll(events);
     try {
@@ -289,6 +362,7 @@ class LocalBackupService {
           }
         }
         if (hasTasks) {
+          await db.customStatement('DELETE FROM task_external_links');
           await db.delete(db.taskReminders).go();
           await db.delete(db.taskRecords).go();
           await db.delete(db.taskPreferences).go();
@@ -310,6 +384,33 @@ class LocalBackupService {
           }
           for (final row in taskPreferences) {
             await db.into(db.taskPreferences).insert(row);
+          }
+          for (final link in taskExternalLinks) {
+            await db.customStatement(
+              '''
+              INSERT INTO task_external_links(
+                task_id, provider, account_scope, resource_type, external_id,
+                external_url, remote_course_id, remote_course_name,
+                last_remote_title, last_remote_deadline,
+                last_remote_has_deadline_time, last_seen_at, ignored
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ''',
+              [
+                link['taskId'],
+                link['provider'],
+                link['accountScope'],
+                link['resourceType'],
+                link['externalId'],
+                link['externalUrl'],
+                link['remoteCourseId'],
+                link['remoteCourseName'],
+                link['lastRemoteTitle'],
+                link['lastRemoteDeadline'],
+                link['lastRemoteHasDeadlineTime'],
+                link['lastSeenAt'],
+                version.toInt() >= 5 ? link['ignored'] : 0,
+              ],
+            );
           }
         }
         // Child tables first. NTHU catalog/cache tables are deliberately retained.

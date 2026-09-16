@@ -7,6 +7,25 @@ import '../../tasks/domain/task_types.dart';
 
 part 'academic_database.g.dart';
 
+const createTaskExternalLinksTableSql = '''
+CREATE TABLE IF NOT EXISTS task_external_links (
+  task_id TEXT NOT NULL PRIMARY KEY REFERENCES task_records(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  account_scope TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  external_url TEXT NOT NULL,
+  remote_course_id TEXT,
+  remote_course_name TEXT NOT NULL,
+  last_remote_title TEXT NOT NULL,
+  last_remote_deadline TEXT NOT NULL,
+  last_remote_has_deadline_time INTEGER NOT NULL CHECK (last_remote_has_deadline_time IN (0, 1)),
+  last_seen_at TEXT NOT NULL,
+  ignored INTEGER NOT NULL DEFAULT 0 CHECK (ignored IN (0, 1)),
+  UNIQUE(provider, account_scope, resource_type, external_id)
+)
+''';
+
 abstract class AuditedTable extends Table {
   TextColumn get id => text()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -231,7 +250,7 @@ class AcademicDatabase extends _$AcademicDatabase {
       );
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   Future<void> seedTaskCategories() async {
     for (final entry in defaultTaskCategoryColors.entries) {
@@ -252,6 +271,7 @@ class AcademicDatabase extends _$AcademicDatabase {
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
+      await customStatement(createTaskExternalLinksTableSql);
       await seedTaskCategories();
       await customStatement(
         "CREATE UNIQUE INDEX one_current_semester ON semesters(status) WHERE status = 'current' AND deleted_at IS NULL",
@@ -330,6 +350,13 @@ class AcademicDatabase extends _$AcademicDatabase {
           "UPDATE task_records SET priority = 'high' WHERE priority = 'urgent'",
         );
         await seedTaskCategories();
+      }
+      if (from < 6) {
+        await customStatement(createTaskExternalLinksTableSql);
+      } else if (from < 7) {
+        await customStatement(
+          'ALTER TABLE task_external_links ADD COLUMN ignored INTEGER NOT NULL DEFAULT 0 CHECK (ignored IN (0, 1))',
+        );
       }
     },
     beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),
