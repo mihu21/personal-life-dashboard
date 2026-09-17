@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS task_external_links (
   remote_course_id TEXT,
   remote_course_name TEXT NOT NULL,
   last_remote_title TEXT NOT NULL,
+  last_remote_description TEXT NOT NULL DEFAULT '',
   last_remote_deadline TEXT NOT NULL,
   last_remote_has_deadline_time INTEGER NOT NULL CHECK (last_remote_has_deadline_time IN (0, 1)),
   last_seen_at TEXT NOT NULL,
@@ -250,7 +251,7 @@ class AcademicDatabase extends _$AcademicDatabase {
       );
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   Future<void> seedTaskCategories() async {
     for (final entry in defaultTaskCategoryColors.entries) {
@@ -357,6 +358,19 @@ class AcademicDatabase extends _$AcademicDatabase {
         await customStatement(
           'ALTER TABLE task_external_links ADD COLUMN ignored INTEGER NOT NULL DEFAULT 0 CHECK (ignored IN (0, 1))',
         );
+      }
+      if (from < 8) {
+        final linkColumns = await customSelect(
+          'PRAGMA table_info(task_external_links)',
+        ).get();
+        final hasRemoteDescription = linkColumns.any(
+          (row) => row.read<String>('name') == 'last_remote_description',
+        );
+        if (!hasRemoteDescription) {
+          await customStatement(
+            "ALTER TABLE task_external_links ADD COLUMN last_remote_description TEXT NOT NULL DEFAULT ''",
+          );
+        }
       }
     },
     beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),

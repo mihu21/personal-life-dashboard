@@ -8,10 +8,14 @@ class TaskFilterDialog extends StatefulWidget {
   const TaskFilterDialog({
     required this.filter,
     required this.categories,
+    required this.courses,
     super.key,
   });
+
   final TaskFilter filter;
   final List<String> categories;
+  final Map<String, String> courses;
+
   @override
   State<TaskFilterDialog> createState() => _TaskFilterDialogState();
 }
@@ -20,10 +24,12 @@ class _TaskFilterDialogState extends State<TaskFilterDialog> {
   late Set<String> categories;
   late Set<TaskPriority> priorities;
   late Set<TaskStatus> statuses;
+  late Set<TaskSource> sources;
+  late Set<String> courseIds;
+  late bool includeNoCourse;
   late DuePeriod due;
   DateTime? start, end;
   late bool overdue, noDeadline;
-  int? limit;
 
   @override
   void initState() {
@@ -32,15 +38,100 @@ class _TaskFilterDialogState extends State<TaskFilterDialog> {
   }
 
   void read(TaskFilter f) {
-    limit = f.limit;
     categories = {...f.categories};
     priorities = {...f.priorities};
     statuses = {...f.statuses};
+    sources = {...f.sources};
+    courseIds = f.courseIds.where(widget.courses.containsKey).toSet();
+    includeNoCourse = f.includeNoCourse;
     due = f.duePeriod;
     start = f.start;
     end = f.end;
     overdue = f.includeOverdue;
     noDeadline = f.includeNoDeadline;
+  }
+
+  String get _courseSummary {
+    if (courseIds.isEmpty && !includeNoCourse) return 'All courses';
+    final selected = <String>[
+      for (final id in courseIds)
+        if (widget.courses[id] != null) widget.courses[id]!,
+      if (includeNoCourse) 'No related course',
+    ];
+    if (selected.isEmpty) return 'All courses';
+    if (selected.length == 1) return selected.single;
+    return '${selected.length} selected';
+  }
+
+  Future<void> _pickCourses() async {
+    var draftIds = {...courseIds};
+    var draftNoCourse = includeNoCourse;
+    final entries = widget.courses.entries.toList()
+      ..sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+    final result = await showDialog<(Set<String>, bool)>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Courses'),
+          scrollable: true,
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('No related course'),
+                  value: draftNoCourse,
+                  onChanged: (value) => setDialogState(
+                    () => draftNoCourse = value ?? false,
+                  ),
+                ),
+                for (final entry in entries)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(entry.value),
+                    value: draftIds.contains(entry.key),
+                    onChanged: (value) => setDialogState(() {
+                      if (value == true) {
+                        draftIds.add(entry.key);
+                      } else {
+                        draftIds.remove(entry.key);
+                      }
+                    }),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => setDialogState(() {
+                draftIds.clear();
+                draftNoCourse = false;
+              }),
+              child: const Text('All courses'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                context,
+                (<String>{...draftIds}, draftNoCourse),
+              ),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        courseIds = result.$1;
+        includeNoCourse = result.$2;
+      });
+    }
   }
 
   @override
@@ -53,24 +144,6 @@ class _TaskFilterDialogState extends State<TaskFilterDialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DropdownButtonFormField<int>(
-              isExpanded: true,
-              itemHeight: null,
-              key: ValueKey(limit),
-              initialValue: limit ?? 0,
-              decoration: const InputDecoration(
-                labelText: 'Agenda upcoming tasks',
-              ),
-              items: [
-                for (final n in [5, 10, 20, 0])
-                  DropdownMenuItem(
-                    value: n,
-                    child: Text(n == 0 ? 'All upcoming' : 'Next $n'),
-                  ),
-              ],
-              onChanged: (v) => setState(() => limit = v == 0 ? null : v),
-            ),
-            const SizedBox(height: 16),
             const Text('Categories · no selection means all'),
             chips(widget.categories, categories, (v) => v),
             const SizedBox(height: 12),
@@ -79,6 +152,31 @@ class _TaskFilterDialogState extends State<TaskFilterDialog> {
             const SizedBox(height: 12),
             const Text('Statuses · select at least one'),
             chips(TaskStatus.values, statuses, (v) => v.label),
+            const SizedBox(height: 12),
+            const Text('Sources · select at least one'),
+            chips(TaskSource.values, sources, (v) => v.label),
+            const SizedBox(height: 16),
+            const Text('Courses · no selection means all'),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _pickCourses,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _courseSummary,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.left,
+                      ),
+                    ),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
             DropdownButtonFormField<DuePeriod>(
               initialValue: due,
@@ -130,7 +228,7 @@ class _TaskFilterDialogState extends State<TaskFilterDialog> {
               onChanged: (v) => setState(() => noDeadline = v!),
             ),
             const Text(
-              'These two sections stay visible outside the selected due period and do not count toward the upcoming limit.',
+              'Overdue and no-deadline tasks stay visible outside the selected due period.',
             ),
           ],
         ),
@@ -147,6 +245,7 @@ class _TaskFilterDialogState extends State<TaskFilterDialog> {
         FilledButton(
           onPressed:
               statuses.isEmpty ||
+                  sources.isEmpty ||
                   due == DuePeriod.custom && (start == null || end == null)
               ? null
               : () => Navigator.pop(
@@ -155,13 +254,15 @@ class _TaskFilterDialogState extends State<TaskFilterDialog> {
                     categories: categories,
                     priorities: priorities,
                     statuses: statuses,
+                    sources: sources,
+                    courseIds: courseIds,
+                    includeNoCourse: includeNoCourse,
                     duePeriod: due,
                     start: start,
                     end: end,
                     includeOverdue: overdue,
                     includeNoDeadline: noDeadline,
                     search: widget.filter.search,
-                    limit: limit,
                   ),
                 ),
           child: const Text('Apply'),

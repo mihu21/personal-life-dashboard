@@ -130,7 +130,8 @@ void main() {
         categories: {'Homework'},
         priorities: {TaskPriority.high},
         statuses: {TaskStatus.active},
-        limit: 20,
+        sources: {TaskSource.eeclass, TaskSource.elearn},
+        courseIds: {'course-a'},
       ).encode();
       final filter = TaskFilter.decode(
         encoded.replaceAll('active', 'todo').replaceAll('high', 'urgent'),
@@ -138,7 +139,8 @@ void main() {
       expect(filter.statuses, {TaskStatus.active});
       expect(filter.priorities, {TaskPriority.high});
       expect(filter.categories, {'Homework'});
-      expect(filter.limit, 20);
+      expect(filter.sources, {TaskSource.eeclass, TaskSource.elearn});
+      expect(filter.courseIds, {'course-a'});
     },
   );
 
@@ -195,15 +197,22 @@ void main() {
         TaskBundle(task, [TaskReminder(id: 0, taskId: task.id, customAt: now)]),
       );
       await repository.saveFilter(
-        const TaskFilter(limit: 20, categories: {'Exam'}, search: 'test'),
+        const TaskFilter(
+          categories: {'Exam'},
+          search: 'test',
+          sources: {TaskSource.elearn},
+          courseIds: {'existing-course'},
+        ),
       );
       await first.close();
       final reopened = AcademicDatabase(NativeDatabase(file));
       final loaded = TaskRepository(reopened);
       expect((await loaded.load()).single.task.courseId, 'existing-course');
       expect((await loaded.load()).single.reminders.single.customAt, now);
-      expect((await loaded.loadFilter()).limit, 20);
-      expect((await loaded.loadFilter()).search, 'test');
+      final savedFilter = await loaded.loadFilter();
+      expect(savedFilter.search, 'test');
+      expect(savedFilter.sources, {TaskSource.elearn});
+      expect(savedFilter.courseIds, {'existing-course'});
       await reopened.close();
       await dir.delete(recursive: true);
     },
@@ -512,7 +521,12 @@ void main() {
         TaskReminder(id: 0, taskId: 'task', customAt: now),
       ]),
     );
-    await repo.saveFilter(const TaskFilter(limit: 20));
+    await repo.saveFilter(
+      const TaskFilter(
+        sources: {TaskSource.manual, TaskSource.elearn},
+        includeNoCourse: true,
+      ),
+    );
     await repo.saveCategory('Personal', 0xFF112233, previousName: 'Personal');
     final archive = await backup.createBackup();
     await repo.saveCategory('Personal', 0xFF445566, previousName: 'Personal');
@@ -523,7 +537,9 @@ void main() {
     await repo.delete('task');
     await backup.restoreBackup(archive.bytes);
     expect((await repo.load()).single.reminders.single.customAt, now);
-    expect((await repo.loadFilter()).limit, 20);
+    final restoredFilter = await repo.loadFilter();
+    expect(restoredFilter.sources, {TaskSource.manual, TaskSource.elearn});
+    expect(restoredFilter.includeNoCourse, true);
     expect(
       (await repo.watchCategories().first)
           .firstWhere((c) => c.name == 'Personal')

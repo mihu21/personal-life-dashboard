@@ -27,9 +27,14 @@ DateTime? reminderTime(TaskRecord task, TaskReminder reminder) =>
     )?.subtract(Duration(minutes: reminder.minutesBefore!));
 
 class TaskBundle {
-  const TaskBundle(this.task, [this.reminders = const []]);
+  const TaskBundle(
+    this.task, [
+    this.reminders = const [],
+    this.source = TaskSource.manual,
+  ]);
   final TaskRecord task;
   final List<TaskReminder> reminders;
+  final TaskSource source;
 }
 
 enum DuePeriod { any, today, next3, thisWeek, next7, next30, custom }
@@ -51,10 +56,16 @@ class TaskFilter {
     this.categories = const {},
     this.priorities = const {},
     this.statuses = const {TaskStatus.active},
+    this.sources = const {
+      TaskSource.manual,
+      TaskSource.eeclass,
+      TaskSource.elearn,
+    },
+    this.courseIds = const {},
+    this.includeNoCourse = false,
     this.duePeriod = DuePeriod.any,
     this.start,
     this.end,
-    this.limit = 10,
     this.search = '',
     this.includeOverdue = true,
     this.includeNoDeadline = true,
@@ -62,10 +73,12 @@ class TaskFilter {
   final Set<String> categories;
   final Set<TaskPriority> priorities;
   final Set<TaskStatus> statuses;
+  final Set<TaskSource> sources;
+  final Set<String> courseIds;
+  final bool includeNoCourse;
   final DuePeriod duePeriod;
   final DateTime? start;
   final DateTime? end;
-  final int? limit;
   final String search;
   final bool includeOverdue;
   final bool includeNoDeadline;
@@ -74,10 +87,12 @@ class TaskFilter {
     'categories': categories.toList(),
     'priorities': priorities.map((e) => e.name).toList(),
     'statuses': statuses.map((e) => e.name).toList(),
+    'sources': sources.map((e) => e.name).toList(),
+    'courseIds': courseIds.toList(),
+    'includeNoCourse': includeNoCourse,
     'duePeriod': duePeriod.name,
     'start': start?.toIso8601String(),
     'end': end?.toIso8601String(),
-    'limit': limit,
     'search': search,
     'includeOverdue': includeOverdue,
     'includeNoDeadline': includeNoDeadline,
@@ -93,10 +108,22 @@ class TaskFilter {
       statuses: (json['statuses'] as List)
           .map((e) => parseTaskStatus(e as String))
           .toSet(),
+      sources: json['sources'] is List
+          ? (json['sources'] as List)
+                .map((e) => TaskSource.values.byName(e as String))
+                .toSet()
+          : const {
+              TaskSource.manual,
+              TaskSource.eeclass,
+              TaskSource.elearn,
+            },
+      courseIds: json['courseIds'] is List
+          ? (json['courseIds'] as List).cast<String>().toSet()
+          : const {},
+      includeNoCourse: json['includeNoCourse'] as bool? ?? false,
       duePeriod: DuePeriod.values.byName(json['duePeriod'] as String),
       start: DateTime.tryParse(json['start'] as String? ?? ''),
       end: DateTime.tryParse(json['end'] as String? ?? ''),
-      limit: json['limit'] as int?,
       search: json['search'] as String? ?? '',
       includeOverdue: json['includeOverdue'] as bool? ?? true,
       includeNoDeadline: json['includeNoDeadline'] as bool? ?? true,
@@ -107,23 +134,13 @@ class TaskFilter {
     categories: categories,
     priorities: priorities,
     statuses: statuses,
+    sources: sources,
+    courseIds: courseIds,
+    includeNoCourse: includeNoCourse,
     duePeriod: duePeriod,
     start: start,
     end: end,
-    limit: limit,
     search: value,
-    includeOverdue: includeOverdue,
-    includeNoDeadline: includeNoDeadline,
-  );
-  TaskFilter withLimit(int? value) => TaskFilter(
-    categories: categories,
-    priorities: priorities,
-    statuses: statuses,
-    duePeriod: duePeriod,
-    start: start,
-    end: end,
-    limit: value,
-    search: search,
     includeOverdue: includeOverdue,
     includeNoDeadline: includeNoDeadline,
   );
@@ -134,7 +151,6 @@ List<TaskBundle> filterTasks(
   TaskFilter filter,
   DateTime now, {
   Map<String, String> courseNames = const {},
-  bool applyLimit = true,
 }) {
   final today = taskDay(now);
   final rangeStart = filter.duePeriod == DuePeriod.custom
@@ -164,6 +180,15 @@ List<TaskBundle> filterTasks(
           return false;
         }
         if (!filter.statuses.contains(task.status)) return false;
+        if (!filter.sources.contains(bundle.source)) return false;
+        if (filter.courseIds.isNotEmpty || filter.includeNoCourse) {
+          final courseId = task.courseId;
+          if (courseId == null) {
+            if (!filter.includeNoCourse) return false;
+          } else if (!filter.courseIds.contains(courseId)) {
+            return false;
+          }
+        }
         if (query.isNotEmpty &&
             !'${task.title} ${task.notes} ${task.category} ${courseNames[task.courseId] ?? ''}'
                 .toLowerCase()
@@ -189,18 +214,7 @@ List<TaskBundle> filterTasks(
         final priority = a.task.priority.index.compareTo(b.task.priority.index);
         return priority != 0 ? priority : a.task.title.compareTo(b.task.title);
       });
-  // The upcoming limit does not hide overdue or undated responsibilities.
-  var upcoming = 0;
-  return visible
-      .where(
-        (b) =>
-            !applyLimit ||
-            filter.limit == null ||
-            b.task.deadline == null ||
-            isTaskOverdue(b.task, now) ||
-            ++upcoming <= filter.limit!,
-      )
-      .toList();
+  return visible;
 }
 
 String agendaSection(TaskRecord task, DateTime now) {

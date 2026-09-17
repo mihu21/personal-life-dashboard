@@ -51,7 +51,7 @@ class LocalBackupService {
   final AcademicDatabase db;
   final OneTimeEventRepository oneTimeEvents;
 
-  static const int formatVersion = 5;
+  static const int formatVersion = 6;
   static const String formatName = 'personal-life-dashboard-backup';
 
   Future<LocalBackupArchive> createBackup() async {
@@ -79,6 +79,7 @@ class LocalBackupService {
                remote_course_id AS remoteCourseId,
                remote_course_name AS remoteCourseName,
                last_remote_title AS lastRemoteTitle,
+               last_remote_description AS lastRemoteDescription,
                last_remote_deadline AS lastRemoteDeadline,
                last_remote_has_deadline_time AS lastRemoteHasDeadlineTime,
                last_seen_at AS lastSeenAt,
@@ -178,7 +179,7 @@ class LocalBackupService {
     }
     final version = manifest['formatVersion'];
     if (version is! num ||
-        !const [1, 2, 3, 4, formatVersion].contains(version.toInt())) {
+        !const [1, 2, 3, 4, 5, formatVersion].contains(version.toInt())) {
       throw FormatException(
         'Unsupported backup version: ${version ?? 'unknown'}.',
       );
@@ -313,6 +314,8 @@ class LocalBackupService {
       final remoteCourseId = link['remoteCourseId'];
       final remoteCourseName = link['remoteCourseName'];
       final lastRemoteTitle = link['lastRemoteTitle'];
+      final lastRemoteDescription =
+          version.toInt() >= 6 ? link['lastRemoteDescription'] : '';
       final lastRemoteDeadline = link['lastRemoteDeadline'];
       final lastSeenAt = link['lastSeenAt'];
       final hasTime = link['lastRemoteHasDeadlineTime'];
@@ -336,6 +339,7 @@ class LocalBackupService {
           remoteCourseName.trim().isEmpty ||
           lastRemoteTitle is! String ||
           lastRemoteTitle.trim().isEmpty ||
+          lastRemoteDescription is! String ||
           lastRemoteDeadline is! String ||
           DateTime.tryParse(lastRemoteDeadline) == null ||
           lastSeenAt is! String ||
@@ -391,9 +395,10 @@ class LocalBackupService {
               INSERT INTO task_external_links(
                 task_id, provider, account_scope, resource_type, external_id,
                 external_url, remote_course_id, remote_course_name,
-                last_remote_title, last_remote_deadline,
-                last_remote_has_deadline_time, last_seen_at, ignored
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                last_remote_title, last_remote_description,
+                last_remote_deadline, last_remote_has_deadline_time,
+                last_seen_at, ignored
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ''',
               [
                 link['taskId'],
@@ -405,6 +410,7 @@ class LocalBackupService {
                 link['remoteCourseId'],
                 link['remoteCourseName'],
                 link['lastRemoteTitle'],
+                version.toInt() >= 6 ? link['lastRemoteDescription'] : '',
                 link['lastRemoteDeadline'],
                 link['lastRemoteHasDeadlineTime'],
                 link['lastSeenAt'],

@@ -8,24 +8,23 @@ import 'package:path_provider/path_provider.dart';
 import '../domain/lms_types.dart';
 
 class LmsSessionService {
-  static const _previewFileName = 'eeclass_preview.json';
+  static const _eeclassPreviewFileName = 'eeclass_preview.json';
+  static const _elearnPreviewFileName = 'elearn_preview.json';
 
   WebViewEnvironment? _webViewEnvironment;
   InAppWebViewKeepAlive _eeclassKeepAlive = InAppWebViewKeepAlive();
+  InAppWebViewKeepAlive _elearnKeepAlive = InAppWebViewKeepAlive();
   InAppWebViewController? _eeclassController;
+  InAppWebViewController? _elearnController;
   bool _initialized = false;
 
   WebViewEnvironment? get webViewEnvironment => _webViewEnvironment;
 
-  /// Token for the single native eeclass WebView used by login, browsing, and
-  /// background-style manual syncs while the app process remains alive.
-  ///
-  /// Reusing the same keep-alive token is important: Windows WebView2 and
-  /// Android then keep the exact authenticated native WebView instead of
-  /// relying on cookies being copied to a second WebView instance.
   InAppWebViewKeepAlive get eeclassKeepAlive => _eeclassKeepAlive;
+  InAppWebViewKeepAlive get elearnKeepAlive => _elearnKeepAlive;
 
   InAppWebViewController? get eeclassController => _eeclassController;
+  InAppWebViewController? get elearnController => _elearnController;
 
   CookieManager get _cookieManager =>
       CookieManager.instance(webViewEnvironment: _webViewEnvironment);
@@ -34,7 +33,7 @@ class LmsSessionService {
     if (_initialized) return;
     if (!Platform.isWindows && !Platform.isAndroid) {
       throw const LmsUnsupportedException(
-        'The NTHU LMS preview currently supports Windows and Android only.',
+        'NTHU LMS sync currently supports Windows and Android only.',
       );
     }
 
@@ -46,6 +45,9 @@ class LmsSessionService {
         );
       }
       final root = await getApplicationSupportDirectory();
+      // Keep the original profile path so existing eeclass sessions survive
+      // this update. eLearn uses a second keep-alive WebView inside the same
+      // browser profile, which also allows normal NTHU SSO behavior.
       final profile = Directory(
         '${root.path}${Platform.pathSeparator}lms${Platform.pathSeparator}eeclass_webview2',
       );
@@ -59,19 +61,17 @@ class LmsSessionService {
     _initialized = true;
   }
 
-  /// Registers the controller for the keep-alive eeclass WebView.
-  ///
-  /// The controller intentionally remains registered when a dialog containing
-  /// the WebView closes. [InAppWebViewKeepAlive] keeps the native WebView alive,
-  /// which lets `Sync now` continue using the exact WebView that performed the
-  /// login instead of creating an unauthenticated second browser.
   void attachEeclassController(InAppWebViewController controller) {
     _eeclassController = controller;
   }
 
-  Future<LmsPreviewSnapshot?> loadPreview() async {
+  void attachElearnController(InAppWebViewController controller) {
+    _elearnController = controller;
+  }
+
+  Future<LmsPreviewSnapshot?> loadPreview(LmsProvider provider) async {
     try {
-      final file = await _previewFile();
+      final file = await _previewFile(provider);
       if (!await file.exists()) return null;
       final decoded = jsonDecode(await file.readAsString());
       if (decoded is! Map) return null;
@@ -81,52 +81,79 @@ class LmsSessionService {
     }
   }
 
-  Future<void> savePreview(LmsPreviewSnapshot snapshot) async {
-    final file = await _previewFile();
+  Future<void> savePreview(
+    LmsProvider provider,
+    LmsPreviewSnapshot snapshot,
+  ) async {
+    final file = await _previewFile(provider);
     await file.parent.create(recursive: true);
     await file.writeAsString(jsonEncode(snapshot.toJson()), flush: true);
   }
 
-  Future<void> clearPreview() async {
-    final file = await _previewFile();
+  Future<void> clearPreview(LmsProvider provider) async {
+    final file = await _previewFile(provider);
     if (await file.exists()) await file.delete();
   }
 
-  Future<void> disconnect() async {
+  Future<void> disconnect(LmsProvider provider) async {
     await ensureInitialized();
 
-    // Clearing cookies is still useful for an explicit Disconnect, but normal
-    // sync no longer depends on copying cookies between WebView instances.
-    await _cookieManager.deleteAllCookies();
-    await _disposeEeclassWebView();
-    await clearPreview();
+    // Do not clear the other LMS provider's cookies when disconnecting one.
+    final origin = switch (provider) {
+      LmsProvider.eeclass => 'https://eeclass.nthu.edu.tw/',
+      LmsProvider.elearn => 'https://elearn.nthu.edu.tw/',
+    };
+    await _cookieManager.deleteCookies(url: WebUri(origin));
+    await _disposeProviderWebView(provider);
+    await clearPreview(provider);
   }
 
   Future<void> dispose() async {
-    await _disposeEeclassWebView();
+    await _disposeProviderWebView(LmsProvider.eeclass);
+    await _disposeProviderWebView(LmsProvider.elearn);
     final environment = _webViewEnvironment;
     _webViewEnvironment = null;
     _initialized = false;
     if (environment != null) await environment.dispose();
   }
 
-  Future<void> _disposeEeclassWebView() async {
-    final hadController = _eeclassController != null;
-    _eeclassController = null;
-    if (hadController) {
-      try {
-        await InAppWebViewController.disposeKeepAlive(_eeclassKeepAlive);
-      } on Object catch (error) {
-        debugPrint('Could not dispose eeclass keep-alive WebView: $error');
-      }
+  Future<void> _disposeProviderWebView(LmsProvider provider) async {
+    switch (provider) {
+      case LmsProvider.eeclass:
+        final hadController = _eeclassController != null;
+        _eeclassController = null;
+        if (hadController) {
+          try {
+            await InAppWebViewController.disposeKeepAlive(_eeclassKeepAlive);
+          } on Object {
+            // The native view may already have been disposed by the platform.
+          }
+        }
+        _eeclassKeepAlive = InAppWebViewKeepAlive();
+        return;
+      case LmsProvider.elearn:
+        final hadController = _elearnController != null;
+        _elearnController = null;
+        if (hadController) {
+          try {
+            await InAppWebViewController.disposeKeepAlive(_elearnKeepAlive);
+          } on Object {
+            // The native view may already have been disposed by the platform.
+          }
+        }
+        _elearnKeepAlive = InAppWebViewKeepAlive();
+        return;
     }
-    _eeclassKeepAlive = InAppWebViewKeepAlive();
   }
 
-  Future<File> _previewFile() async {
+  Future<File> _previewFile(LmsProvider provider) async {
     final root = await getApplicationSupportDirectory();
+    final fileName = switch (provider) {
+      LmsProvider.eeclass => _eeclassPreviewFileName,
+      LmsProvider.elearn => _elearnPreviewFileName,
+    };
     return File(
-      '${root.path}${Platform.pathSeparator}lms${Platform.pathSeparator}$_previewFileName',
+      '${root.path}${Platform.pathSeparator}lms${Platform.pathSeparator}$fileName',
     );
   }
 }

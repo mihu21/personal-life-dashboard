@@ -117,21 +117,23 @@ class _TaskDetailsState extends ConsumerState<TaskDetails> {
                   Text('Course: ${course?.courseName ?? 'Unavailable course'}'),
                 if (t.notes.isNotEmpty) ...[
                   const Divider(height: 24),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: maxNotesHeight),
-                    child: SizedBox(
-                      key: const ValueKey('task-notes-area'),
-                      width: double.infinity,
-                      child: Scrollbar(
-                        controller: notesScrollController,
-                        child: SingleChildScrollView(
-                          key: const ValueKey('task-notes-scroll'),
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: maxNotesHeight),
+                      child: SizedBox(
+                        key: const ValueKey('task-notes-area'),
+                        width: double.infinity,
+                        child: Scrollbar(
                           controller: notesScrollController,
-                          primary: false,
-                          padding: const EdgeInsets.only(right: 12),
-                          child: SelectableText(
-                            t.notes,
-                            textAlign: TextAlign.start,
+                          child: SingleChildScrollView(
+                            key: const ValueKey('task-notes-scroll'),
+                            controller: notesScrollController,
+                            primary: false,
+                            padding: const EdgeInsets.only(right: 12),
+                            child: SelectableText(
+                              t.notes,
+                              textAlign: TextAlign.start,
+                            ),
                           ),
                         ),
                       ),

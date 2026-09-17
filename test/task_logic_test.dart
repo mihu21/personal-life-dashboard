@@ -112,45 +112,60 @@ void main() {
     },
   );
 
-  for (final limit in [5, 10, 20, null]) {
-    test('Next $limit applies after filters and preserves overdue/undated', () {
-      final tasks = [
-        for (var i = 0; i < 50; i++)
-          TaskBundle(
-            taskFixture(
-              'task$i',
-              due: now.add(Duration(days: i + 1)),
-              category: i.isEven ? 'Exam' : 'Personal',
-            ),
-          ),
-        TaskBundle(
-          taskFixture(
-            'overdue',
-            due: now.subtract(const Duration(days: 1)),
-            category: 'Exam',
-          ),
-        ),
-        TaskBundle(taskFixture('undated', category: 'Exam')),
-      ];
-      final result = filterTasks(
+  test('source and course filters combine without hiding unfiltered tasks', () {
+    final tasks = [
+      TaskBundle(
+        taskFixture('manual').copyWith(courseId: const Value('os')),
+      ),
+      TaskBundle(
+        taskFixture('eeclass').copyWith(courseId: const Value('ca')),
+        const [],
+        TaskSource.eeclass,
+      ),
+      TaskBundle(
+        taskFixture('elearn').copyWith(courseId: const Value('math')),
+        const [],
+        TaskSource.elearn,
+      ),
+      TaskBundle(
+        taskFixture('elearn-no-course'),
+        const [],
+        TaskSource.elearn,
+      ),
+    ];
+
+    expect(filterTasks(tasks, const TaskFilter(), now), hasLength(4));
+    expect(
+      filterTasks(
         tasks,
-        TaskFilter(categories: const {'Exam'}, limit: limit),
+        const TaskFilter(sources: {TaskSource.elearn}),
         now,
-      );
-      expect(result.length, (limit ?? 25) + 2);
-      expect(result.first.task.id, 'overdue');
-      expect(result.last.task.id, 'undated');
-      expect(
-        filterTasks(
-          tasks,
-          TaskFilter(categories: const {'Exam'}, limit: limit),
-          now,
-          applyLimit: false,
-        ).length,
-        27,
-      );
-    });
-  }
+      ).map((b) => b.task.id),
+      ['elearn', 'elearn-no-course'],
+    );
+    expect(
+      filterTasks(
+        tasks,
+        const TaskFilter(
+          sources: {TaskSource.eeclass, TaskSource.elearn},
+          courseIds: {'math'},
+        ),
+        now,
+      ).map((b) => b.task.id),
+      ['elearn'],
+    );
+    expect(
+      filterTasks(
+        tasks,
+        const TaskFilter(
+          sources: {TaskSource.elearn},
+          includeNoCourse: true,
+        ),
+        now,
+      ).map((b) => b.task.id),
+      ['elearn-no-course'],
+    );
+  });
 
   test(
     'all due periods use inclusive civil dates and exclude end boundary',
@@ -171,7 +186,7 @@ void main() {
         expect(
           filterTasks(
             tasks,
-            TaskFilter(duePeriod: entry.key, limit: null),
+            TaskFilter(duePeriod: entry.key),
             now,
           ).length,
           entry.value,
@@ -233,15 +248,17 @@ void main() {
     },
   );
 
-  test('filters round trip including custom range and all limit', () {
+  test('filters round trip including sources, courses and custom range', () {
     final f = TaskFilter(
       categories: {'Exam', 'Personal'},
       priorities: {TaskPriority.high, TaskPriority.low},
       statuses: {TaskStatus.completed},
+      sources: {TaskSource.eeclass, TaskSource.elearn},
+      courseIds: {'course-a', 'course-b'},
+      includeNoCourse: true,
       duePeriod: DuePeriod.custom,
       start: now,
       end: taskDayAfter(now, 3),
-      limit: null,
       includeOverdue: false,
       includeNoDeadline: false,
       search: 'report',

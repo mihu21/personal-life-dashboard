@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../class_schedule/providers/academic_providers.dart';
+import '../../class_schedule/data/academic_snapshot.dart';
+import '../../class_schedule/domain/academic_types.dart';
 import '../domain/task_logic.dart';
 import '../domain/task_types.dart';
 import '../providers/task_providers.dart';
@@ -48,10 +50,18 @@ class _TasksModuleState extends ConsumerState<TasksModule> {
     }
   }
 
-  Future<void> filters(TaskFilter filter, List<String> categories) async {
+  Future<void> filters(
+    TaskFilter filter,
+    List<String> categories,
+    Map<String, String> courses,
+  ) async {
     final result = await showDialog<TaskFilter>(
       context: context,
-      builder: (_) => TaskFilterDialog(filter: filter, categories: categories),
+      builder: (_) => TaskFilterDialog(
+        filter: filter,
+        categories: categories,
+        courses: courses,
+      ),
     );
     if (result != null && mounted) await apply(result);
   }
@@ -78,14 +88,13 @@ class _TasksModuleState extends ConsumerState<TasksModule> {
         final categories = colors.isEmpty
             ? taskCategories
             : colors.keys.toList();
+        final academic = ref.watch(academicSnapshotProvider).asData?.value;
         final courses = <String, String>{
-          for (final c
-              in ref.watch(academicSnapshotProvider).asData?.value.courses ??
-                  [])
-            c.id: c.courseName,
+          for (final c in academic?.courses ?? []) c.id: c.courseName,
         };
         final now =
             ref.watch(scheduleClockProvider).asData?.value ?? DateTime.now();
+        final currentCourses = _currentCourseOptions(academic, now);
         final selected = display.date;
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -257,8 +266,11 @@ class _TasksModuleState extends ConsumerState<TasksModule> {
                                             )
                                           : null,
                                       padding: EdgeInsets.zero,
-                                      onPressed: () =>
-                                          filters(filter, categories),
+                                      onPressed: () => filters(
+                                        filter,
+                                        categories,
+                                        currentCourses,
+                                      ),
                                       icon: Icon(
                                         Icons.filter_list,
                                         size: mobile ? 18 : 24,
@@ -272,23 +284,6 @@ class _TasksModuleState extends ConsumerState<TasksModule> {
                               ),
                             ),
                           ),
-                          if (view == TaskView.agenda && !narrow) ...[
-                            const SizedBox(width: 12),
-                            DropdownButton<int>(
-                              value: filter.limit ?? 0,
-                              onChanged: (v) =>
-                                  apply(filter.withLimit(v == 0 ? null : v)),
-                              items: [
-                                for (final n in [5, 10, 20, 0])
-                                  DropdownMenuItem(
-                                    value: n,
-                                    child: Text(
-                                      n == 0 ? 'All upcoming' : 'Next $n',
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -300,19 +295,20 @@ class _TasksModuleState extends ConsumerState<TasksModule> {
                       error: (e, _) =>
                           Center(child: Text('Could not load tasks: $e')),
                       data: (all) {
-                        // Compact mode has no search field or upcoming-limit
-                        // selector, so keep those hidden controls from silently
-                        // restricting the dashboard while still honoring the
-                        // visible filter button's category/status/date choices.
+                        // Compact mode has no search field, so keep search from
+                        // silently restricting the dashboard while honoring all
+                        // filters available from the visible filter button.
                         final effectiveFilter = widget.compact
                             ? TaskFilter(
                                 categories: filter.categories,
                                 priorities: filter.priorities,
                                 statuses: filter.statuses,
+                                sources: filter.sources,
+                                courseIds: filter.courseIds,
+                                includeNoCourse: filter.includeNoCourse,
                                 duePeriod: filter.duePeriod,
                                 start: filter.start,
                                 end: filter.end,
-                                limit: null,
                                 search: '',
                                 includeOverdue: filter.includeOverdue,
                                 includeNoDeadline: filter.includeNoDeadline,
@@ -323,7 +319,6 @@ class _TasksModuleState extends ConsumerState<TasksModule> {
                           effectiveFilter,
                           now,
                           courseNames: courses,
-                          applyLimit: view == TaskView.agenda,
                         );
                         if (view == TaskView.agenda) {
                           return agenda(tasks, courses, now, mobile: mobile);
@@ -1005,66 +1000,70 @@ class _TasksModuleState extends ConsumerState<TasksModule> {
                   )
                 : Padding(
                     padding: const EdgeInsets.all(5),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          '${day.day}',
-                          style: TextStyle(
-                            fontWeight: isToday ? FontWeight.bold : null,
-                            color: dateColor,
-                          ),
-                        ),
-                        if (tasks.isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          Expanded(
-                            child: ClipRect(
-                              child: Align(
-                                alignment: Alignment.topRight,
-                                child: Wrap(
-                                  alignment: WrapAlignment.end,
-                                  runAlignment: WrapAlignment.start,
-                                  spacing: 1,
-                                  runSpacing: 2,
-                                  children: [
-                                    for (final b in tasks)
-                                      SizedBox(
-                                        key: ValueKey(
-                                          'task-month-indicator-${b.task.id}',
-                                        ),
-                                        width: 8,
-                                        height: 18,
-                                        child: Center(
-                                          child: Container(
-                                            width: 3,
-                                            height: 14,
-                                            decoration: BoxDecoration(
-                                              color: Color(
-                                                colors[b.task.category] ??
-                                                    defaultTaskCategoryColors[b
-                                                        .task
-                                                        .category] ??
-                                                    0xFFA6A6B9,
-                                              ).withValues(
-                                                alpha:
-                                                    b.task.status ==
-                                                        TaskStatus.completed
-                                                    ? .55
-                                                    : 1,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(2),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
+                    child: ClipRect(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Align(
+                            alignment: Alignment.topLeft,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.topLeft,
+                              child: Text(
+                                '${day.day}',
+                                style: TextStyle(
+                                  fontWeight: isToday ? FontWeight.bold : null,
+                                  color: dateColor,
                                 ),
                               ),
                             ),
                           ),
+                          if (tasks.isNotEmpty)
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: Wrap(
+                                alignment: WrapAlignment.end,
+                                runAlignment: WrapAlignment.end,
+                                spacing: 1,
+                                runSpacing: 1,
+                                children: [
+                                  for (final b in tasks)
+                                    SizedBox(
+                                      key: ValueKey(
+                                        'task-month-indicator-${b.task.id}',
+                                      ),
+                                      width: 8,
+                                      height: 18,
+                                      child: Center(
+                                        child: Container(
+                                          width: 3,
+                                          height: 14,
+                                          decoration: BoxDecoration(
+                                            color: Color(
+                                              colors[b.task.category] ??
+                                                  defaultTaskCategoryColors[b
+                                                      .task
+                                                      .category] ??
+                                                  0xFFA6A6B9,
+                                            ).withValues(
+                                              alpha:
+                                                  b.task.status ==
+                                                      TaskStatus.completed
+                                                  ? .55
+                                                  : 1,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              2,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                         ],
-                      ],
+                      ),
                     ),
                   ),
           ),
@@ -1090,7 +1089,6 @@ class _TasksModuleState extends ConsumerState<TasksModule> {
               ref.watch(tasksProvider).asData?.value ?? [],
               filter,
               DateTime.now(),
-              applyLimit: false,
               courseNames: names,
             ).where(
               (b) =>
@@ -1427,9 +1425,15 @@ class TaskTile extends ConsumerWidget {
                               : null,
                         ),
                       ),
-                      if (!compact)
+                      if (!compact &&
+                          (bundle.reminders.isNotEmpty ||
+                              t.repeatUnit != RepeatUnit.none))
                         Text(
-                          '${t.status.label}${bundle.reminders.isEmpty ? '' : ' · ${bundle.reminders.length} reminder${bundle.reminders.length == 1 ? '' : 's'}'}${t.repeatUnit == RepeatUnit.none ? '' : ' · Repeats'}',
+                          [
+                            if (bundle.reminders.isNotEmpty)
+                              '${bundle.reminders.length} reminder${bundle.reminders.length == 1 ? '' : 's'}',
+                            if (t.repeatUnit != RepeatUnit.none) 'Repeats',
+                          ].join(' · '),
                         ),
                     ],
                   ),
@@ -1441,6 +1445,46 @@ class TaskTile extends ConsumerWidget {
       ),
     );
   }
+}
+
+Map<String, String> _currentCourseOptions(
+  AcademicSnapshot? academic,
+  DateTime now,
+) {
+  if (academic == null) return const <String, String>{};
+
+  final today = DateTime(now.year, now.month, now.day);
+  final explicitCurrentSemester = academic.currentSemester;
+  final datedCurrentSemester = academic.semesters.where((semester) {
+    final start = DateTime(
+      semester.startDate.year,
+      semester.startDate.month,
+      semester.startDate.day,
+    );
+    final end = DateTime(
+      semester.endDate.year,
+      semester.endDate.month,
+      semester.endDate.day,
+    );
+    return !today.isBefore(start) && !today.isAfter(end);
+  }).firstOrNull;
+
+  final semestersByNewest = [...academic.semesters]
+    ..sort((a, b) => b.startDate.compareTo(a.startDate));
+  final effectiveCurrentSemester =
+      explicitCurrentSemester ??
+      datedCurrentSemester ??
+      semestersByNewest.firstOrNull;
+  final currentSemesterId = effectiveCurrentSemester?.id;
+  if (currentSemesterId == null) return const <String, String>{};
+
+  return <String, String>{
+    for (final c in academic.courses)
+      if (c.semesterId == currentSemesterId &&
+          c.status != CourseStatus.withdrawn &&
+          c.status != CourseStatus.failed)
+        c.id: c.courseName,
+  };
 }
 
 class TasksDashboardCard extends ConsumerWidget {
@@ -1459,12 +1503,18 @@ class TasksDashboardCard extends ConsumerWidget {
     final categories = categoryColors.isEmpty
         ? taskCategories
         : categoryColors.keys.toList();
+    final academic = ref.watch(academicSnapshotProvider).asData?.value;
+    final now = ref.watch(scheduleClockProvider).asData?.value ?? DateTime.now();
+    final currentCourses = _currentCourseOptions(academic, now);
 
     Future<void> showFilters() async {
       final result = await showDialog<TaskFilter>(
         context: context,
-        builder: (_) =>
-            TaskFilterDialog(filter: filter, categories: categories),
+        builder: (_) => TaskFilterDialog(
+          filter: filter,
+          categories: categories,
+          courses: currentCourses,
+        ),
       );
       if (result == null || !context.mounted) return;
       try {

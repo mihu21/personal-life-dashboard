@@ -1,4 +1,4 @@
-enum LmsProvider { eeclass }
+enum LmsProvider { eeclass, elearn }
 
 enum LmsResourceType { homework, unknown }
 
@@ -17,6 +17,13 @@ enum LmsConnectionStatus {
   unsupported,
 }
 
+extension LmsProviderLabel on LmsProvider {
+  String get displayName => switch (this) {
+    LmsProvider.eeclass => 'eeclass',
+    LmsProvider.elearn => 'eLearn',
+  };
+}
+
 class LmsItem {
   const LmsItem({
     required this.provider,
@@ -28,6 +35,7 @@ class LmsItem {
     required this.duePrecision,
     required this.url,
     this.courseId,
+    this.description = '',
   });
 
   final LmsProvider provider;
@@ -39,6 +47,7 @@ class LmsItem {
   final DateTime dueAt;
   final LmsDuePrecision duePrecision;
   final String url;
+  final String description;
 
   Map<String, Object?> toJson() => {
     'provider': provider.name,
@@ -50,6 +59,7 @@ class LmsItem {
     'dueAt': dueAt.toIso8601String(),
     'duePrecision': duePrecision.name,
     'url': url,
+    'description': description,
   };
 
   factory LmsItem.fromJson(Map<String, Object?> json) => LmsItem(
@@ -66,6 +76,7 @@ class LmsItem {
       json['duePrecision']! as String,
     ),
     url: json['url']! as String,
+    description: json['description'] as String? ?? '',
   );
 }
 
@@ -81,6 +92,8 @@ class LmsPreviewSnapshot {
   final DateTime syncedAt;
   final String accountScope;
   final int ignoredUnknownEvents;
+
+  LmsProvider? get provider => items.isEmpty ? null : items.first.provider;
 
   Map<String, Object?> toJson() => {
     'items': [for (final item in items) item.toJson()],
@@ -126,7 +139,7 @@ class LmsTaskSyncResult {
   int get processed => created + updated + unchanged + restored + suppressed;
 
   String get message {
-    if (processed == 0) return 'No eeclass assignments needed task changes.';
+    if (processed == 0) return 'No LMS assignments needed task changes.';
     final parts = <String>[];
     if (created > 0) parts.add('$created created');
     if (updated > 0) parts.add('$updated updated');
@@ -173,7 +186,7 @@ class LmsConnectionState {
 
 class LmsSessionExpiredException implements Exception {
   const LmsSessionExpiredException([
-    this.message = 'Your eeclass session has expired. Sign in again.',
+    this.message = 'Your LMS session has expired. Sign in again.',
   ]);
 
   final String message;

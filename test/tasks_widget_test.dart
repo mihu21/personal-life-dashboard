@@ -529,8 +529,8 @@ void main() {
 
   for (final dashboardCompact in [false, true]) {
     testWidgets(
-      'month uses one bar per task and dims adjacent-month days '
-      '${dashboardCompact ? 'in dashboard' : 'when expanded'}',
+      'month uses compact bars in dashboard and detailed rows when expanded; '
+      'adjacent-month days stay dimmed ${dashboardCompact ? 'in dashboard' : 'when expanded'}',
       (tester) async {
         final clock = DateTime(2026, 9, 16, 12);
         final monthBundles = [
@@ -582,12 +582,23 @@ void main() {
         container.read(taskDisplayProvider.notifier).view(TaskView.month);
         await tester.pumpAndSettle();
 
-        final taskBars = find.byWidgetPredicate((widget) {
+        final compactIndicators = find.byWidgetPredicate((widget) {
           final key = widget.key;
           return key is ValueKey<String> &&
               key.value.startsWith('task-month-indicator-');
         });
-        expect(taskBars, findsNWidgets(monthBundles.length));
+        final detailedRows = find.byWidgetPredicate((widget) {
+          final key = widget.key;
+          return key is ValueKey<String> &&
+              key.value.startsWith('task-month-detail-');
+        });
+        if (dashboardCompact) {
+          expect(compactIndicators, findsNWidgets(monthBundles.length));
+          expect(detailedRows, findsNothing);
+        } else {
+          expect(compactIndicators, findsNothing);
+          expect(detailedRows, findsWidgets);
+        }
 
         final outside = tester.widget<Opacity>(
           find.byKey(const ValueKey('task-month-cell-2026-8-31')),

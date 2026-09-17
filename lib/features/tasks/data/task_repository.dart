@@ -81,10 +81,12 @@ class TaskRepository {
             ..add(newName),
           priorities: filter.priorities,
           statuses: filter.statuses,
+          sources: filter.sources,
+          courseIds: filter.courseIds,
+          includeNoCourse: filter.includeNoCourse,
           duePeriod: filter.duePeriod,
           start: filter.start,
           end: filter.end,
-          limit: filter.limit,
           search: filter.search,
           includeOverdue: filter.includeOverdue,
           includeNoDeadline: filter.includeNoDeadline,
@@ -98,9 +100,26 @@ class TaskRepository {
       db.taskRecords,
     )..where((t) => t.deletedAt.isNull())).get();
     final reminders = await db.select(db.taskReminders).get();
+    final sourceRows = await db.customSelect('''
+      SELECT task_id, provider
+      FROM task_external_links
+      WHERE ignored = 0
+    ''').get();
+    final sources = <String, TaskSource>{
+      for (final row in sourceRows)
+        row.read<String>('task_id'): switch (row.read<String>('provider')) {
+          'eeclass' => TaskSource.eeclass,
+          'elearn' => TaskSource.elearn,
+          _ => TaskSource.manual,
+        },
+    };
     return [
       for (final task in tasks)
-        TaskBundle(task, reminders.where((r) => r.taskId == task.id).toList()),
+        TaskBundle(
+          task,
+          reminders.where((r) => r.taskId == task.id).toList(),
+          sources[task.id] ?? TaskSource.manual,
+        ),
     ];
   }
 

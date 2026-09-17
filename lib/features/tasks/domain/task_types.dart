@@ -2,6 +2,8 @@ enum TaskPriority { high, medium, low }
 
 enum TaskStatus { active, completed }
 
+enum TaskSource { manual, eeclass, elearn }
+
 enum RepeatUnit { none, daily, weekly, monthly }
 
 const taskCategories = [
@@ -19,6 +21,14 @@ extension TaskPriorityLabel on TaskPriority {
 
 extension TaskStatusLabel on TaskStatus {
   String get label => ['Active', 'Completed'][index];
+}
+
+extension TaskSourceLabel on TaskSource {
+  String get label => switch (this) {
+    TaskSource.manual => 'Manual',
+    TaskSource.eeclass => 'eeclass',
+    TaskSource.elearn => 'eLearn',
+  };
 }
 
 extension RepeatUnitLabel on RepeatUnit {

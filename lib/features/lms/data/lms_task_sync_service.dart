@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../class_schedule/data/academic_database.dart';
+import '../../class_schedule/domain/academic_types.dart';
 import '../../tasks/domain/task_types.dart';
 import '../domain/lms_types.dart';
 
@@ -17,7 +18,7 @@ class LmsTaskSyncService {
     if (preview.accountScope == 'legacy' ||
         preview.accountScope.trim().isEmpty) {
       throw const LmsTaskSyncException(
-        'Sign in to eeclass again before importing Tasks so the account can be identified safely.',
+        'Sign in to the LMS again before importing Tasks so the account can be identified safely.',
       );
     }
 
@@ -47,6 +48,9 @@ class LmsTaskSyncService {
       final courses = await (db.select(
         db.courses,
       )..where((c) => c.deletedAt.isNull())).get();
+      final semesters = await (db.select(
+        db.semesters,
+      )..where((s) => s.deletedAt.isNull())).get();
 
       var created = 0;
       var updated = 0;
@@ -63,7 +67,7 @@ class LmsTaskSyncService {
         final link = await _findLink(preview.accountScope, item);
         if (link == null) {
           final taskId = _uuid.v4();
-          final localCourseId = _matchLocalCourseId(courses, item.courseName);
+          final localCourseId = _matchLocalCourseId(courses, semesters, item);
           final remoteDeadline = _taskDeadline(item);
           await db
               .into(db.taskRecords)
@@ -73,7 +77,7 @@ class LmsTaskSyncService {
                   createdAt: now,
                   updatedAt: now,
                   title: item.title,
-                  notes: '',
+                  notes: item.description,
                   category: importCategory,
                   courseId: localCourseId,
                   deadline: remoteDeadline,
@@ -126,7 +130,13 @@ class LmsTaskSyncService {
 
         final remoteDeadline = _taskDeadline(item);
         final remoteHasTime = item.duePrecision == LmsDuePrecision.dateTime;
+        final matchedLocalCourseId = _matchLocalCourseId(
+          courses,
+          semesters,
+          item,
+        );
         final titleCanFollowRemote = task.title == link.lastRemoteTitle;
+        final notesCanFollowRemote = task.notes == link.lastRemoteDescription;
         final deadlineCanFollowRemote = _sameDeadline(
           task.deadline,
           task.hasDeadlineTime,
@@ -135,6 +145,8 @@ class LmsTaskSyncService {
         );
 
         final titleChangedRemotely = item.title != link.lastRemoteTitle;
+        final descriptionChangedRemotely =
+            item.description != link.lastRemoteDescription;
         final deadlineChangedRemotely = !_sameDeadline(
           remoteDeadline,
           remoteHasTime,
@@ -143,13 +155,33 @@ class LmsTaskSyncService {
         );
 
         String? nextTitle;
+        String? nextNotes;
+        String? nextCourseId;
         DateTime? nextDeadline;
         bool? nextHasDeadlineTime;
         var changed = false;
 
+        // Existing imported tasks from older syncs may not have been linked to
+        // their local course because eLearn decorates course names with Chinese
+        // text, semester codes and official course numbers. Fill the link when
+        // it is still empty, but never replace a course the user already chose.
+        if (task.courseId == null && matchedLocalCourseId != null) {
+          nextCourseId = matchedLocalCourseId;
+          changed = true;
+        }
+
         if (titleChangedRemotely) {
           if (titleCanFollowRemote) {
             nextTitle = item.title;
+            changed = true;
+          } else {
+            preservedOverrides++;
+          }
+        }
+
+        if (descriptionChangedRemotely) {
+          if (notesCanFollowRemote) {
+            nextNotes = item.description;
             changed = true;
           } else {
             preservedOverrides++;
@@ -174,6 +206,12 @@ class LmsTaskSyncService {
               title: nextTitle == null
                   ? const Value.absent()
                   : Value(nextTitle),
+              notes: nextNotes == null
+                  ? const Value.absent()
+                  : Value(nextNotes),
+              courseId: nextCourseId == null
+                  ? const Value.absent()
+                  : Value(nextCourseId),
               deadline: nextHasDeadlineTime == null
                   ? const Value.absent()
                   : Value(nextDeadline),
@@ -307,32 +345,139 @@ class LmsTaskSyncService {
     return left.isAtSameMomentAs(right) && leftHasTime == rightHasTime;
   }
 
-  String? _matchLocalCourseId(List<Course> courses, String remoteName) {
-    final remote = _normalizeCourse(remoteName);
-    final matches = <String>[];
-    for (final course in courses) {
-      final names = <String>{
-        _normalizeCourse(course.courseName),
-        if (course.englishName?.trim().isNotEmpty == true)
-          _normalizeCourse(course.englishName!),
-        if (course.englishName?.trim().isNotEmpty == true)
-          _normalizeCourse('${course.courseName}${course.englishName}'),
-      }..removeWhere((value) => value.isEmpty);
-      final isMatch = names.any(
-        (name) =>
-            remote == name ||
-            (name.length >= 4 &&
-                (remote.startsWith(name) || remote.endsWith(name))),
+  String? _matchLocalCourseId(
+    List<Course> courses,
+    List<Semester> semesters,
+    LmsItem item,
+  ) {
+    if (courses.isEmpty) return null;
+
+    final semesterById = {
+      for (final semester in semesters) semester.id: semester,
+    };
+    final remoteCodes = _remoteCourseCodes(item.courseName);
+    if (remoteCodes.isNotEmpty) {
+      final codeMatches = courses.where((course) {
+        final code = _normalizeCourseCode(course.courseCode);
+        return code.isNotEmpty && remoteCodes.contains(code);
+      }).toList();
+      final resolved = _resolveCourseMatch(
+        codeMatches,
+        semesterById,
+        item.dueAt,
       );
-      if (isMatch) {
-        matches.add(course.id);
-      }
+      if (resolved != null) return resolved;
     }
-    return matches.length == 1 ? matches.single : null;
+
+    final remoteBaseName = _stripRemoteCourseSuffix(item.courseName);
+    final remoteEnglish = _normalizeEnglishCourseName(remoteBaseName);
+    if (remoteEnglish.isNotEmpty) {
+      final englishMatches = courses.where((course) {
+        final names = <String>{
+          _normalizeEnglishCourseName(course.courseName),
+          if (course.englishName?.trim().isNotEmpty == true)
+            _normalizeEnglishCourseName(course.englishName!),
+        }..removeWhere((value) => value.isEmpty);
+        return names.contains(remoteEnglish);
+      }).toList();
+      final resolved = _resolveCourseMatch(
+        englishMatches,
+        semesterById,
+        item.dueAt,
+      );
+      if (resolved != null) return resolved;
+    }
+
+    final remoteNormalized = _normalizeCourseName(remoteBaseName);
+    if (remoteNormalized.isEmpty) return null;
+    final nameMatches = courses.where((course) {
+      final names = <String>{
+        _normalizeCourseName(course.courseName),
+        if (course.englishName?.trim().isNotEmpty == true)
+          _normalizeCourseName(course.englishName!),
+        if (course.englishName?.trim().isNotEmpty == true)
+          _normalizeCourseName('${course.courseName}${course.englishName}'),
+      }..removeWhere((value) => value.isEmpty);
+      return names.contains(remoteNormalized);
+    }).toList();
+    return _resolveCourseMatch(nameMatches, semesterById, item.dueAt);
   }
 
-  String _normalizeCourse(String value) =>
-      value.toLowerCase().replaceAll(RegExp(r'\s+'), '').trim();
+  String? _resolveCourseMatch(
+    List<Course> matches,
+    Map<String, Semester> semesterById,
+    DateTime dueAt,
+  ) {
+    if (matches.length == 1) return matches.single.id;
+    if (matches.isEmpty) return null;
+
+    final dueDate = DateTime(dueAt.year, dueAt.month, dueAt.day);
+    final dueSemesterMatches = matches.where((course) {
+      final semester = semesterById[course.semesterId];
+      if (semester == null) return false;
+      final start = DateTime(
+        semester.startDate.year,
+        semester.startDate.month,
+        semester.startDate.day,
+      );
+      final end = DateTime(
+        semester.endDate.year,
+        semester.endDate.month,
+        semester.endDate.day,
+      );
+      return !dueDate.isBefore(start) && !dueDate.isAfter(end);
+    }).toList();
+    if (dueSemesterMatches.length == 1) return dueSemesterMatches.single.id;
+
+    final activeMatches = matches
+        .where((course) => course.status == CourseStatus.inProgress)
+        .toList();
+    return activeMatches.length == 1 ? activeMatches.single.id : null;
+  }
+
+  Set<String> _remoteCourseCodes(String value) {
+    final codes = <String>{};
+    final pattern = RegExp(r'(\d{5})\s*([A-Za-z]{2,})\s*(\d{3,})');
+    for (final match in pattern.allMatches(value)) {
+      final term = match.group(1)!;
+      final subject = match.group(2)!;
+      final number = match.group(3)!;
+      codes.add(_normalizeCourseCode('$term$subject$number'));
+      // Some manually entered local courses omit the semester prefix.
+      codes.add(_normalizeCourseCode('$subject$number'));
+    }
+    return codes;
+  }
+
+  String _stripRemoteCourseSuffix(String value) {
+    final pattern = RegExp(r'(\d{5})\s*([A-Za-z]{2,})\s*(\d{3,})');
+    final matches = pattern.allMatches(value).toList();
+    if (matches.isEmpty) return value.trim();
+    final match = matches.last;
+    final trailing = value.substring(match.end);
+    if (trailing.replaceAll(RegExp(r'[\s_\-–—:;,.()\[\]]'), '').isNotEmpty) {
+      return value.trim();
+    }
+    return value
+        .substring(0, match.start)
+        .replaceFirst(RegExp(r'[\s_\-–—:;,.()\[\]]+$'), '')
+        .trim();
+  }
+
+  String _normalizeCourseCode(String value) => value
+      .toUpperCase()
+      .replaceAll(RegExp(r'[^A-Z0-9]'), '')
+      .trim();
+
+  String _normalizeEnglishCourseName(String value) => RegExp(r'[A-Za-z0-9]+')
+      .allMatches(value.toLowerCase())
+      .map((match) => match.group(0)!)
+      .join();
+
+  String _normalizeCourseName(String value) => value
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9\u3400-\u9fff]'), '')
+      .trim();
 
   Future<_TaskExternalLink?> _findLink(
     String accountScope,
@@ -343,7 +488,7 @@ class LmsTaskSyncService {
           '''
       SELECT task_id, provider, account_scope, resource_type, external_id,
              external_url, remote_course_id, remote_course_name,
-             last_remote_title, last_remote_deadline,
+             last_remote_title, last_remote_description, last_remote_deadline,
              last_remote_has_deadline_time, last_seen_at, ignored
       FROM task_external_links
       WHERE provider = ? AND account_scope = ? AND resource_type = ? AND external_id = ?
@@ -370,9 +515,9 @@ class LmsTaskSyncService {
     INSERT INTO task_external_links(
       task_id, provider, account_scope, resource_type, external_id,
       external_url, remote_course_id, remote_course_name,
-      last_remote_title, last_remote_deadline,
+      last_remote_title, last_remote_description, last_remote_deadline,
       last_remote_has_deadline_time, last_seen_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''',
     [
       taskId,
@@ -384,6 +529,7 @@ class LmsTaskSyncService {
       item.courseId,
       item.courseName,
       item.title,
+      item.description,
       _taskDeadline(item).toIso8601String(),
       item.duePrecision == LmsDuePrecision.dateTime ? 1 : 0,
       lastSeenAt.toIso8601String(),
@@ -398,8 +544,8 @@ class LmsTaskSyncService {
     '''
     UPDATE task_external_links
     SET external_url = ?, remote_course_id = ?, remote_course_name = ?,
-        last_remote_title = ?, last_remote_deadline = ?,
-        last_remote_has_deadline_time = ?, last_seen_at = ?
+        last_remote_title = ?, last_remote_description = ?,
+        last_remote_deadline = ?, last_remote_has_deadline_time = ?, last_seen_at = ?
     WHERE task_id = ?
     ''',
     [
@@ -407,6 +553,7 @@ class LmsTaskSyncService {
       item.courseId,
       item.courseName,
       item.title,
+      item.description,
       _taskDeadline(item).toIso8601String(),
       item.duePrecision == LmsDuePrecision.dateTime ? 1 : 0,
       lastSeenAt.toIso8601String(),
@@ -419,6 +566,7 @@ class _TaskExternalLink {
   const _TaskExternalLink({
     required this.taskId,
     required this.lastRemoteTitle,
+    required this.lastRemoteDescription,
     required this.lastRemoteDeadline,
     required this.lastRemoteHasDeadlineTime,
     required this.ignored,
@@ -426,6 +574,7 @@ class _TaskExternalLink {
 
   final String taskId;
   final String lastRemoteTitle;
+  final String lastRemoteDescription;
   final DateTime lastRemoteDeadline;
   final bool lastRemoteHasDeadlineTime;
   final bool ignored;
@@ -434,6 +583,8 @@ class _TaskExternalLink {
       _TaskExternalLink(
         taskId: row['task_id']! as String,
         lastRemoteTitle: row['last_remote_title']! as String,
+        lastRemoteDescription:
+            (row['last_remote_description'] as String?) ?? '',
         lastRemoteDeadline: DateTime.parse(
           row['last_remote_deadline']! as String,
         ),
