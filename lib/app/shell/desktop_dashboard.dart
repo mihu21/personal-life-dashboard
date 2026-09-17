@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../features/class_schedule/presentation/class_schedule_card.dart';
-import '../../features/shopping/presentation/shopping_placeholder.dart';
+import '../../features/note_plus/presentation/note_plus_module.dart';
 import '../../features/spending/presentation/spending_placeholder.dart';
 import '../../features/tasks/presentation/tasks_module.dart';
 import 'settings_dialog.dart';
@@ -38,7 +38,7 @@ class DesktopDashboard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 8,
                     children: const [
-                      Expanded(child: ShoppingPlaceholder(desktop: true)),
+                      Expanded(child: NotePlusDashboardCard()),
                       Expanded(child: SpendingPlaceholder(desktop: true)),
                     ],
                   ),

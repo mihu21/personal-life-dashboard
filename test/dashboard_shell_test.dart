@@ -1,5 +1,8 @@
 import 'package:personal_life_dashboard/features/class_schedule/data/academic_database.dart';
 import 'package:personal_life_dashboard/features/tasks/domain/task_types.dart';
+import 'package:personal_life_dashboard/features/note_plus/domain/note_plus_types.dart';
+import 'package:personal_life_dashboard/features/note_plus/presentation/note_plus_module.dart';
+import 'package:personal_life_dashboard/features/note_plus/providers/note_plus_providers.dart';
 import 'package:personal_life_dashboard/features/tasks/presentation/tasks_module.dart';
 import 'package:personal_life_dashboard/features/tasks/providers/task_providers.dart';
 import 'package:personal_life_dashboard/features/tasks/domain/task_logic.dart';
@@ -41,6 +44,7 @@ Future<void> pumpDashboard(
         tasksProvider.overrideWith((ref) => Stream.value(const <TaskBundle>[])),
         taskFilterProvider.overrideWith(_TestTaskFilter.new),
         taskNotificationSyncProvider.overrideWith((ref) async {}),
+        notePlusProvider.overrideWith((ref) => Stream.value(const NotePlusSnapshot(notes: [], lists: []))),
         academicSnapshotProvider.overrideWith(
           (ref) => Stream.value(data ?? emptyAcademicData()),
         ),
@@ -65,6 +69,10 @@ Finder module(String title) => title == 'Class Schedule'
         (widget) =>
             widget is TasksDashboardCard ||
             widget is TasksModule && !widget.compact,
+      )
+    : title == 'Note+'
+    ? find.byWidgetPredicate(
+        (widget) => widget is NotePlusDashboardCard || widget is NotePlusModule,
       )
     : find.widgetWithText(ModulePlaceholder, title);
 
@@ -232,11 +240,11 @@ void main() {
   ) async {
     await pumpDashboard(tester);
     expect(find.byType(NavigationBar), findsNothing);
-    expect(find.byType(ModulePlaceholder), findsNWidgets(2));
+    expect(find.byType(ModulePlaceholder), findsOneWidget);
 
     final schedule = tester.getTopLeft(module('Class Schedule'));
     final tasks = tester.getTopLeft(module('Tasks & Reminders'));
-    final shopping = tester.getTopLeft(module('Shopping'));
+    final shopping = tester.getTopLeft(module('Note+'));
     final spending = tester.getTopLeft(module('Spending'));
     expect(tester.getBottomLeft(find.text('Today')).dy, lessThan(schedule.dy));
     expect(schedule.dy, tasks.dy);
@@ -286,7 +294,7 @@ void main() {
         for (final title in [
           'Class Schedule',
           'Tasks & Reminders',
-          'Shopping',
+          'Note+',
           'Spending',
         ])
           tester.getRect(module(title)),
@@ -341,7 +349,7 @@ void main() {
 
     for (final entry in {
       'Tasks': 'Tasks & Reminders',
-      'Shopping': 'Shopping',
+      'Note+': 'Note+',
       'Spending': 'Spending',
       'Schedule': 'Class Schedule',
     }.entries) {
@@ -354,9 +362,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.byType(ModulePlaceholder),
-        entry.key == 'Schedule' || entry.key == 'Tasks'
-            ? findsNothing
-            : findsOneWidget,
+        entry.key == 'Spending' ? findsOneWidget : findsNothing,
       );
       expect(module(entry.value), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -372,7 +378,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 900);
     await tester.pumpAndSettle();
     expect(find.byType(NavigationBar), findsNothing);
-    expect(find.byType(ModulePlaceholder), findsNWidgets(2));
+    expect(find.byType(ModulePlaceholder), findsOneWidget);
     tester.view.physicalSize = const Size(390, 844);
     await tester.pumpAndSettle();
     expect(module('Tasks & Reminders'), findsOneWidget);

@@ -27,6 +27,8 @@ import 'package:personal_life_dashboard/features/class_schedule/presentation/exc
 import 'package:personal_life_dashboard/features/class_schedule/presentation/add_schedule_button.dart';
 import 'package:personal_life_dashboard/features/class_schedule/presentation/planning_view.dart';
 import 'package:personal_life_dashboard/features/class_schedule/providers/academic_providers.dart';
+import 'package:personal_life_dashboard/features/note_plus/domain/note_plus_types.dart';
+import 'package:personal_life_dashboard/features/note_plus/providers/note_plus_providers.dart';
 
 import 'academic_fixtures.dart';
 
@@ -162,6 +164,11 @@ void main() {
                 (ref) => Stream.value(DateTime(2026, 9, 7, 8, 30)),
               ),
               oneTimeEventsProvider.overrideWith((ref) async => [event]),
+              notePlusProvider.overrideWith(
+                (ref) => Stream.value(
+                  const NotePlusSnapshot(notes: [], lists: []),
+                ),
+              ),
             ],
             child: RepaintBoundary(key: _boundary, child: const DashboardApp()),
           ),

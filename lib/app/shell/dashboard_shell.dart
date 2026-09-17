@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/class_schedule/presentation/class_schedule_module.dart';
-import '../../features/shopping/presentation/shopping_placeholder.dart';
+import '../../features/note_plus/presentation/note_plus_module.dart';
 import '../../features/spending/presentation/spending_placeholder.dart';
 import '../../features/tasks/presentation/tasks_module.dart';
 import '../../features/tasks/providers/task_providers.dart';
@@ -74,6 +74,8 @@ class DashboardShell extends ConsumerWidget {
                 ? const ClassScheduleModule()
                 : selected == DashboardModule.tasks
                 ? const TasksModule()
+                : selected == DashboardModule.notePlus
+                ? const NotePlusModule()
                 : SingleChildScrollView(
                     key: PageStorageKey(selected.name),
                     padding: EdgeInsets.all(denseMobile ? 6 : 10),
@@ -125,9 +127,9 @@ class DashboardShell extends ConsumerWidget {
                       label: 'Tasks',
                     ),
                     NavigationDestination(
-                      icon: _TightNavIcon(Icons.shopping_bag_outlined),
-                      selectedIcon: _TightNavIcon(Icons.shopping_bag_rounded),
-                      label: 'Shopping',
+                      icon: _TightNavIcon(Icons.note_alt_outlined),
+                      selectedIcon: _TightNavIcon(Icons.note_alt_rounded),
+                      label: 'Note+',
                     ),
                     NavigationDestination(
                       icon: _TightNavIcon(
@@ -149,14 +151,14 @@ class DashboardShell extends ConsumerWidget {
   static String _pageTitle(DashboardModule module) => switch (module) {
     DashboardModule.schedule => 'Make time for learning.',
     DashboardModule.tasks => 'One thing at a time.',
-    DashboardModule.shopping => 'For your next trip.',
+    DashboardModule.notePlus => 'Capture it your way.',
     DashboardModule.spending => 'See the everyday clearly.',
   };
 
   static Widget _page(DashboardModule module) => switch (module) {
     DashboardModule.schedule => const ClassScheduleModule(),
     DashboardModule.tasks => const TasksModule(),
-    DashboardModule.shopping => const ShoppingPlaceholder(),
+    DashboardModule.notePlus => const NotePlusModule(),
     DashboardModule.spending => const SpendingPlaceholder(),
   };
 }

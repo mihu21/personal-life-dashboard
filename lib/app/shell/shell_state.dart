@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum DashboardModule { schedule, tasks, shopping, spending }
+enum DashboardModule { schedule, tasks, notePlus, spending }
 
 // Only transient shell preferences live here. Feature state belongs to features.
 final selectedModuleProvider =

@@ -27,6 +27,38 @@ CREATE TABLE IF NOT EXISTS task_external_links (
 )
 ''';
 
+const createNotePlusTablesSql = <String>[
+  '''CREATE TABLE IF NOT EXISTS note_plus_notes (
+    id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL DEFAULT '',
+    pinned INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
+  )''',
+  '''CREATE TABLE IF NOT EXISTS note_plus_lists (
+    id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'list',
+    pinned INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
+  )''',
+  '''CREATE TABLE IF NOT EXISTS note_plus_properties (
+    id TEXT NOT NULL PRIMARY KEY, list_id TEXT NOT NULL, name TEXT NOT NULL, property_type TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0, is_primary INTEGER NOT NULL DEFAULT 0, configuration TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT,
+    FOREIGN KEY(list_id) REFERENCES note_plus_lists(id) ON DELETE CASCADE
+  )''',
+  '''CREATE TABLE IF NOT EXISTS note_plus_items (
+    id TEXT NOT NULL PRIMARY KEY, list_id TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT,
+    FOREIGN KEY(list_id) REFERENCES note_plus_lists(id) ON DELETE CASCADE
+  )''',
+  '''CREATE TABLE IF NOT EXISTS note_plus_values (
+    item_id TEXT NOT NULL, property_id TEXT NOT NULL, value TEXT,
+    PRIMARY KEY(item_id, property_id),
+    FOREIGN KEY(item_id) REFERENCES note_plus_items(id) ON DELETE CASCADE,
+    FOREIGN KEY(property_id) REFERENCES note_plus_properties(id) ON DELETE CASCADE
+  )''',
+  'CREATE INDEX IF NOT EXISTS note_plus_properties_list_idx ON note_plus_properties(list_id, position)',
+  'CREATE INDEX IF NOT EXISTS note_plus_items_list_idx ON note_plus_items(list_id, position)',
+];
+
 abstract class AuditedTable extends Table {
   TextColumn get id => text()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -212,6 +244,7 @@ class TaskPreferences extends Table {
   Set<Column> get primaryKey => {key};
 }
 
+
 class TaskCategoryRecords extends Table {
   TextColumn get name => text()();
   IntColumn get color => integer()();
@@ -251,7 +284,7 @@ class AcademicDatabase extends _$AcademicDatabase {
       );
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   Future<void> seedTaskCategories() async {
     for (final entry in defaultTaskCategoryColors.entries) {
@@ -268,11 +301,18 @@ class AcademicDatabase extends _$AcademicDatabase {
     );
   }
 
+  Future<void> _createNotePlusTables() async {
+    for (final statement in createNotePlusTablesSql) {
+      await customStatement(statement);
+    }
+  }
+
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
       await customStatement(createTaskExternalLinksTableSql);
+      await _createNotePlusTables();
       await seedTaskCategories();
       await customStatement(
         "CREATE UNIQUE INDEX one_current_semester ON semesters(status) WHERE status = 'current' AND deleted_at IS NULL",
@@ -371,6 +411,9 @@ class AcademicDatabase extends _$AcademicDatabase {
             "ALTER TABLE task_external_links ADD COLUMN last_remote_description TEXT NOT NULL DEFAULT ''",
           );
         }
+      }
+      if (from < 9) {
+        await _createNotePlusTables();
       }
     },
     beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),
