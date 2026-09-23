@@ -55,6 +55,12 @@ const createNotePlusTablesSql = <String>[
     FOREIGN KEY(item_id) REFERENCES note_plus_items(id) ON DELETE CASCADE,
     FOREIGN KEY(property_id) REFERENCES note_plus_properties(id) ON DELETE CASCADE
   )''',
+  '''CREATE TABLE IF NOT EXISTS note_plus_entry_order (
+    entry_type TEXT NOT NULL, entry_id TEXT NOT NULL, position INTEGER NOT NULL,
+    PRIMARY KEY(entry_type, entry_id),
+    CHECK(entry_type IN ('note', 'list'))
+  )''',
+  'CREATE INDEX IF NOT EXISTS note_plus_entry_order_position_idx ON note_plus_entry_order(position)',
   'CREATE INDEX IF NOT EXISTS note_plus_properties_list_idx ON note_plus_properties(list_id, position)',
   'CREATE INDEX IF NOT EXISTS note_plus_items_list_idx ON note_plus_items(list_id, position)',
 ];
@@ -284,7 +290,7 @@ class AcademicDatabase extends _$AcademicDatabase {
       );
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   Future<void> seedTaskCategories() async {
     for (final entry in defaultTaskCategoryColors.entries) {
@@ -304,6 +310,31 @@ class AcademicDatabase extends _$AcademicDatabase {
   Future<void> _createNotePlusTables() async {
     for (final statement in createNotePlusTablesSql) {
       await customStatement(statement);
+    }
+  }
+
+
+  Future<void> _seedNotePlusEntryOrder() async {
+    final existing = await customSelect('''
+      SELECT 'note' AS entry_type, id, pinned, updated_at
+      FROM note_plus_notes
+      WHERE deleted_at IS NULL
+      UNION ALL
+      SELECT 'list' AS entry_type, id, pinned, updated_at
+      FROM note_plus_lists
+      WHERE deleted_at IS NULL
+      ORDER BY pinned DESC, updated_at DESC
+    ''').get();
+    for (var i = 0; i < existing.length; i++) {
+      await customStatement(
+        '''INSERT OR IGNORE INTO note_plus_entry_order(entry_type, entry_id, position)
+           VALUES (?, ?, ?)''',
+        [
+          existing[i].read<String>('entry_type'),
+          existing[i].read<String>('id'),
+          i,
+        ],
+      );
     }
   }
 
@@ -414,6 +445,10 @@ class AcademicDatabase extends _$AcademicDatabase {
       }
       if (from < 9) {
         await _createNotePlusTables();
+      }
+      if (from < 10) {
+        await _createNotePlusTables();
+        await _seedNotePlusEntryOrder();
       }
     },
     beforeOpen: (_) async => customStatement('PRAGMA foreign_keys = ON'),

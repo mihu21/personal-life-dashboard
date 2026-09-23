@@ -55,6 +55,7 @@ class NoteRecord {
     required this.archived,
     required this.createdAt,
     required this.updatedAt,
+    required this.position,
   });
 
   final String id;
@@ -64,6 +65,7 @@ class NoteRecord {
   final bool archived;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final int position;
 }
 
 class NoteList {
@@ -75,6 +77,7 @@ class NoteList {
     required this.archived,
     required this.createdAt,
     required this.updatedAt,
+    required this.position,
   });
 
   final String id;
@@ -84,6 +87,7 @@ class NoteList {
   final bool archived;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final int position;
 }
 
 class NotePropertyRow {
@@ -137,6 +141,9 @@ class NotePlusProperty {
   String get name => row.name;
   bool get isPrimary => row.isPrimary;
   int get position => row.position;
+  String? get linkedChecklistId => type == NotePropertyType.progress
+      ? decodeLinkedChecklistId(row.configuration)
+      : null;
 }
 
 class NotePlusItem {
@@ -170,6 +177,50 @@ class NotePlusSnapshot {
   final List<NotePlusListBundle> lists;
 }
 
+
+enum NotePlusEntryKind { note, list }
+
+class NotePlusEntry {
+  const NotePlusEntry.note(NoteRecord value)
+      : kind = NotePlusEntryKind.note,
+        note = value,
+        bundle = null;
+
+  const NotePlusEntry.list(NotePlusListBundle value)
+      : kind = NotePlusEntryKind.list,
+        note = null,
+        bundle = value;
+
+  final NotePlusEntryKind kind;
+  final NoteRecord? note;
+  final NotePlusListBundle? bundle;
+
+  String get id => note?.id ?? bundle!.list.id;
+  String get title => note?.title ?? bundle!.list.name;
+  bool get pinned => note?.pinned ?? bundle!.list.pinned;
+  bool get archived => note?.archived ?? bundle!.list.archived;
+  int get position => note?.position ?? bundle!.list.position;
+  DateTime get updatedAt => note?.updatedAt ?? bundle!.list.updatedAt;
+}
+
+extension NotePlusSnapshotEntries on NotePlusSnapshot {
+  List<NotePlusEntry> get orderedEntries {
+    final entries = <NotePlusEntry>[
+      for (final note in notes) NotePlusEntry.note(note),
+      for (final bundle in lists) NotePlusEntry.list(bundle),
+    ];
+    entries.sort((a, b) {
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      final byPosition = a.position.compareTo(b.position);
+      if (byPosition != 0) return byPosition;
+      final byUpdated = b.updatedAt.compareTo(a.updatedAt);
+      if (byUpdated != 0) return byUpdated;
+      return a.id.compareTo(b.id);
+    });
+    return entries;
+  }
+}
+
 List<String> decodeOptions(String raw, NotePropertyType type) {
   try {
     final decoded = jsonDecode(raw);
@@ -187,7 +238,29 @@ List<String> decodeOptions(String raw, NotePropertyType type) {
   return const [];
 }
 
-String encodeOptions(List<String> options) => jsonEncode({'options': options});
+String? decodeLinkedChecklistId(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is Map) {
+      final value = decoded['linkedChecklistId']?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+  } catch (_) {}
+  return null;
+}
+
+String encodePropertyConfiguration(
+  List<String> options, {
+  String? linkedChecklistId,
+}) =>
+    jsonEncode({
+      'options': options,
+      if (linkedChecklistId != null && linkedChecklistId.trim().isNotEmpty)
+        'linkedChecklistId': linkedChecklistId.trim(),
+    });
+
+String encodeOptions(List<String> options) =>
+    encodePropertyConfiguration(options);
 
 Object? decodeNoteValue(String? raw) {
   if (raw == null || raw.isEmpty) return null;
@@ -209,7 +282,9 @@ double? noteNumericValue(Object? value) {
 }
 
 String displayNoteValue(NotePlusProperty property, Object? value) {
-  if (value == null) return '';
+  if (value == null) {
+    return property.type == NotePropertyType.progress ? '0%' : '';
+  }
   switch (property.type) {
     case NotePropertyType.checkbox:
       return value == true ? 'Yes' : 'No';
