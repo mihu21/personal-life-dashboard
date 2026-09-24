@@ -3857,7 +3857,7 @@ class _ItemDetailsDialogState extends ConsumerState<_ItemDetailsDialog> {
                   ),
                 ),
                 Text(
-                  '${done}/${entries.length} done',
+                  '$done/${entries.length} done',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

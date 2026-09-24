@@ -7,6 +7,10 @@ import '../../tasks/domain/task_types.dart';
 
 part 'academic_database.g.dart';
 
+const createSpendingTableSql = '''CREATE TABLE IF NOT EXISTS spending_state (
+  id INTEGER PRIMARY KEY CHECK(id = 1), payload TEXT NOT NULL
+)''';
+
 const createTaskExternalLinksTableSql = '''
 CREATE TABLE IF NOT EXISTS task_external_links (
   task_id TEXT NOT NULL PRIMARY KEY REFERENCES task_records(id) ON DELETE CASCADE,
@@ -250,7 +254,6 @@ class TaskPreferences extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-
 class TaskCategoryRecords extends Table {
   TextColumn get name => text()();
   IntColumn get color => integer()();
@@ -290,7 +293,7 @@ class AcademicDatabase extends _$AcademicDatabase {
       );
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   Future<void> seedTaskCategories() async {
     for (final entry in defaultTaskCategoryColors.entries) {
@@ -312,7 +315,6 @@ class AcademicDatabase extends _$AcademicDatabase {
       await customStatement(statement);
     }
   }
-
 
   Future<void> _seedNotePlusEntryOrder() async {
     final existing = await customSelect('''
@@ -342,6 +344,7 @@ class AcademicDatabase extends _$AcademicDatabase {
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
+      await customStatement(createSpendingTableSql);
       await customStatement(createTaskExternalLinksTableSql);
       await _createNotePlusTables();
       await seedTaskCategories();
@@ -350,6 +353,7 @@ class AcademicDatabase extends _$AcademicDatabase {
       );
     },
     onUpgrade: (m, from, to) async {
+      if (from < 11) await customStatement(createSpendingTableSql);
       if (from < 2) {
         await m.addColumn(semesters, semesters.nthuTermCode);
         await m.createTable(nthuCatalogTerms);

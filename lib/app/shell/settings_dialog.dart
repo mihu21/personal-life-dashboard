@@ -1,3 +1,5 @@
+import '../../features/spending/providers/spending_providers.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -149,7 +151,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
           title: const Text('Replace local data?'),
           content: Text(
             'Importing ${file.name} will replace this device’s semesters, '
-            'courses, academic records, and one-time events. Backups containing tasks also replace tasks, reminders, and filters; older backups keep your tasks. Your downloaded '
+            'courses, academic records, and one-time events. Backups containing tasks also replace tasks, reminders, and filters; older backups keep your tasks. Backups containing spending also replace accounts, transactions, budgets, recurring plans, and debts; older backups keep spending data. Your downloaded '
             'NTHU catalog cache will be kept.\n\nThis cannot be undone unless '
             'you export a backup of this device first.',
           ),
@@ -173,6 +175,7 @@ class _SettingsDialogState extends ConsumerState<SettingsDialog> {
           .read(localBackupServiceProvider)
           .restoreBackup(bytes);
 
+      ref.invalidate(spendingProvider);
       ref.invalidate(academicSnapshotProvider);
       ref.invalidate(oneTimeEventsProvider);
       ref.invalidate(taskFilterProvider);

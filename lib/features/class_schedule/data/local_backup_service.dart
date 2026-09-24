@@ -6,6 +6,8 @@ import 'package:drift/drift.dart';
 import '../domain/one_time_event.dart';
 import '../../tasks/domain/task_types.dart';
 import 'academic_database.dart';
+import '../../spending/domain/spending_models.dart';
+import '../../spending/domain/spending_engine.dart';
 import 'one_time_event_repository.dart';
 
 class LocalBackupSummary {
@@ -51,7 +53,7 @@ class LocalBackupService {
   final AcademicDatabase db;
   final OneTimeEventRepository oneTimeEvents;
 
-  static const int formatVersion = 6;
+  static const int formatVersion = 7;
   static const String formatName = 'personal-life-dashboard-backup';
 
   Future<LocalBackupArchive> createBackup() async {
@@ -86,7 +88,12 @@ class LocalBackupService {
                ignored
         FROM task_external_links
       ''').get();
+      final spending = await db
+          .customSelect('SELECT payload FROM spending_state WHERE id = 1')
+          .getSingleOrNull();
       return {
+        'spending':
+            spending?.read<String>('payload') ?? SpendingState().encode(),
         'taskCategories': [for (final row in taskCategories) row.toJson()],
         'tasks': [for (final row in tasks) row.toJson()],
         'taskReminders': [for (final row in reminders) row.toJson()],
@@ -132,6 +139,7 @@ class LocalBackupService {
         'academicRecords': true,
         'oneTimeEvents': true,
         'tasks': true,
+        'spending': true,
         'taskExternalLinks': true,
         'nthuCatalogCache': false,
       },
@@ -179,7 +187,7 @@ class LocalBackupService {
     }
     final version = manifest['formatVersion'];
     if (version is! num ||
-        !const [1, 2, 3, 4, 5, formatVersion].contains(version.toInt())) {
+        !const [1, 2, 3, 4, 5, 6, formatVersion].contains(version.toInt())) {
       throw FormatException(
         'Unsupported backup version: ${version ?? 'unknown'}.',
       );
@@ -187,6 +195,15 @@ class LocalBackupService {
 
     final academic = _readJsonMap(archive, 'academic.json');
     final eventJson = _readJsonList(archive, 'one_time_events.json');
+    final spendingPayload = version.toInt() >= 7
+        ? academic['spending'] as String
+        : null;
+    if (spendingPayload != null) {
+      SpendingEngine(
+        SpendingState.decode(spendingPayload),
+        () => '',
+      ).validate();
+    }
 
     // Fully parse before replacing anything, so malformed backups do not erase
     // the current device's data.
@@ -240,9 +257,8 @@ class LocalBackupService {
                 (json) => TaskRecord.fromJson({
                   ...json,
                   'status': parseTaskStatus(json['status'] as String).name,
-                  'priority': parseTaskPriority(
-                    json['priority'] as String,
-                  ).name,
+                  'priority': parseTaskPriority(json['priority'] as String)
+                      .name,
                 }),
               )
               .toList()
@@ -314,8 +330,9 @@ class LocalBackupService {
       final remoteCourseId = link['remoteCourseId'];
       final remoteCourseName = link['remoteCourseName'];
       final lastRemoteTitle = link['lastRemoteTitle'];
-      final lastRemoteDescription =
-          version.toInt() >= 6 ? link['lastRemoteDescription'] : '';
+      final lastRemoteDescription = version.toInt() >= 6
+          ? link['lastRemoteDescription']
+          : '';
       final lastRemoteDeadline = link['lastRemoteDeadline'];
       final lastSeenAt = link['lastSeenAt'];
       final hasTime = link['lastRemoteHasDeadlineTime'];
@@ -359,6 +376,12 @@ class LocalBackupService {
     await oneTimeEvents.replaceAll(events);
     try {
       await db.transaction(() async {
+        if (spendingPayload != null) {
+          await db.customStatement(
+            'INSERT INTO spending_state(id, payload) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload',
+            [spendingPayload],
+          );
+        }
         if (version.toInt() >= 3) {
           await db.delete(db.taskCategoryRecords).go();
           for (final c in taskCategories) {

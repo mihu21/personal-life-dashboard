@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../features/class_schedule/presentation/class_schedule_card.dart';
 import '../../features/note_plus/presentation/note_plus_module.dart';
-import '../../features/spending/presentation/spending_placeholder.dart';
+import '../../features/spending/presentation/spending_module.dart';
 import '../../features/tasks/presentation/tasks_module.dart';
 import 'settings_dialog.dart';
 
@@ -39,7 +39,7 @@ class DesktopDashboard extends StatelessWidget {
                     spacing: 8,
                     children: const [
                       Expanded(child: NotePlusDashboardCard()),
-                      Expanded(child: SpendingPlaceholder(desktop: true)),
+                      Expanded(child: SpendingDashboardCard()),
                     ],
                   ),
                 ),

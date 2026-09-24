@@ -1,6 +1,9 @@
+import 'package:personal_life_dashboard/features/spending/domain/spending_models.dart';
+import 'package:personal_life_dashboard/features/spending/providers/spending_providers.dart';
 import 'package:personal_life_dashboard/features/tasks/domain/task_types.dart';
 import 'package:personal_life_dashboard/features/tasks/providers/task_providers.dart';
 import 'package:personal_life_dashboard/features/tasks/domain/task_logic.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -102,9 +105,9 @@ void main() {
       for (final family in ['Roboto', 'Segoe UI']) {
         final loader = FontLoader(family);
         loader.addFont(
-          File(
-            'C:/Windows/Fonts/segoeui.ttf',
-          ).readAsBytes().then((bytes) => ByteData.sublistView(bytes)),
+          File('C:/Windows/Fonts/segoeui.ttf')
+              .readAsBytes()
+              .then((bytes) => ByteData.sublistView(bytes)),
         );
         await loader.load();
       }
@@ -145,6 +148,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              spendingProvider.overrideWith(
+                (ref) => Stream.value(SpendingState()),
+              ),
               taskFilterProvider.overrideWith(_AuditTaskFilter.new),
               taskCategoriesProvider.overrideWith(
                 (_) => Stream.value([
@@ -165,9 +171,8 @@ void main() {
               ),
               oneTimeEventsProvider.overrideWith((ref) async => [event]),
               notePlusProvider.overrideWith(
-                (ref) => Stream.value(
-                  const NotePlusSnapshot(notes: [], lists: []),
-                ),
+                (ref) =>
+                    Stream.value(const NotePlusSnapshot(notes: [], lists: [])),
               ),
             ],
             child: RepaintBoundary(key: _boundary, child: const DashboardApp()),

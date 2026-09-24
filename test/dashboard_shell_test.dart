@@ -1,3 +1,6 @@
+import 'package:personal_life_dashboard/features/spending/domain/spending_models.dart';
+import 'package:personal_life_dashboard/features/spending/providers/spending_providers.dart';
+import 'package:personal_life_dashboard/features/spending/presentation/spending_module.dart';
 import 'package:personal_life_dashboard/features/class_schedule/data/academic_database.dart';
 import 'package:personal_life_dashboard/features/tasks/domain/task_types.dart';
 import 'package:personal_life_dashboard/features/note_plus/domain/note_plus_types.dart';
@@ -35,6 +38,7 @@ Future<void> pumpDashboard(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        spendingProvider.overrideWith((ref) => Stream.value(SpendingState())),
         taskCategoriesProvider.overrideWith(
           (_) => Stream.value([
             for (final e in defaultTaskCategoryColors.entries)
@@ -44,7 +48,9 @@ Future<void> pumpDashboard(
         tasksProvider.overrideWith((ref) => Stream.value(const <TaskBundle>[])),
         taskFilterProvider.overrideWith(_TestTaskFilter.new),
         taskNotificationSyncProvider.overrideWith((ref) async {}),
-        notePlusProvider.overrideWith((ref) => Stream.value(const NotePlusSnapshot(notes: [], lists: []))),
+        notePlusProvider.overrideWith(
+          (ref) => Stream.value(const NotePlusSnapshot(notes: [], lists: [])),
+        ),
         academicSnapshotProvider.overrideWith(
           (ref) => Stream.value(data ?? emptyAcademicData()),
         ),
@@ -74,7 +80,9 @@ Finder module(String title) => title == 'Class Schedule'
     ? find.byWidgetPredicate(
         (widget) => widget is NotePlusDashboardCard || widget is NotePlusModule,
       )
-    : find.widgetWithText(ModulePlaceholder, title);
+    : find.byWidgetPredicate(
+        (widget) => widget is SpendingDashboardCard || widget is SpendingModule,
+      );
 
 void main() {
   testWidgets(
@@ -240,7 +248,7 @@ void main() {
   ) async {
     await pumpDashboard(tester);
     expect(find.byType(NavigationBar), findsNothing);
-    expect(find.byType(ModulePlaceholder), findsOneWidget);
+    expect(find.byType(ModulePlaceholder), findsNothing);
 
     final schedule = tester.getTopLeft(module('Class Schedule'));
     final tasks = tester.getTopLeft(module('Tasks & Reminders'));
@@ -360,10 +368,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.byType(ModulePlaceholder),
-        entry.key == 'Spending' ? findsOneWidget : findsNothing,
-      );
+      expect(find.byType(ModulePlaceholder), findsNothing);
       expect(module(entry.value), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
@@ -378,7 +383,7 @@ void main() {
     tester.view.physicalSize = const Size(1200, 900);
     await tester.pumpAndSettle();
     expect(find.byType(NavigationBar), findsNothing);
-    expect(find.byType(ModulePlaceholder), findsOneWidget);
+    expect(find.byType(ModulePlaceholder), findsNothing);
     tester.view.physicalSize = const Size(390, 844);
     await tester.pumpAndSettle();
     expect(module('Tasks & Reminders'), findsOneWidget);

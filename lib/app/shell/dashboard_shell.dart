@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/class_schedule/presentation/class_schedule_module.dart';
 import '../../features/note_plus/presentation/note_plus_module.dart';
-import '../../features/spending/presentation/spending_placeholder.dart';
+import '../../features/spending/presentation/spending_module.dart';
 import '../../features/tasks/presentation/tasks_module.dart';
 import '../../features/tasks/providers/task_providers.dart';
+import '../../features/spending/providers/spending_providers.dart';
 import '../theme/app_density.dart';
 import 'desktop_dashboard.dart';
 import 'settings_dialog.dart';
@@ -21,12 +22,12 @@ class DashboardShell extends ConsumerWidget {
     final theme = Theme.of(context);
     final selected = ref.watch(selectedModuleProvider);
     ref.watch(taskNotificationSyncProvider);
+    ref.watch(spendingProvider);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final desktop = constraints.maxWidth >= desktopBreakpoint;
         final denseMobile = AppDensity.isMobile(context);
-        final mobileTheme = theme;
         final scaffold = Scaffold(
           appBar: desktop
               ? null
@@ -76,37 +77,7 @@ class DashboardShell extends ConsumerWidget {
                 ? const TasksModule()
                 : selected == DashboardModule.notePlus
                 ? const NotePlusModule()
-                : SingleChildScrollView(
-                    key: PageStorageKey(selected.name),
-                    padding: EdgeInsets.all(denseMobile ? 6 : 10),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1240),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              _pageTitle(selected),
-                              style: mobileTheme.textTheme.headlineMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: -.8,
-                                  ),
-                            ),
-                            SizedBox(height: denseMobile ? 2 : 4),
-                            Text(
-                              'A space for the things that matter.',
-                              style: mobileTheme.textTheme.bodyLarge?.copyWith(
-                                color: mobileTheme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            SizedBox(height: denseMobile ? 6 : 10),
-                            _page(selected),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                : const SpendingModule(),
           ),
           bottomNavigationBar: desktop
               ? null
@@ -147,20 +118,6 @@ class DashboardShell extends ConsumerWidget {
       },
     );
   }
-
-  static String _pageTitle(DashboardModule module) => switch (module) {
-    DashboardModule.schedule => 'Make time for learning.',
-    DashboardModule.tasks => 'One thing at a time.',
-    DashboardModule.notePlus => 'Capture it your way.',
-    DashboardModule.spending => 'See the everyday clearly.',
-  };
-
-  static Widget _page(DashboardModule module) => switch (module) {
-    DashboardModule.schedule => const ClassScheduleModule(),
-    DashboardModule.tasks => const TasksModule(),
-    DashboardModule.notePlus => const NotePlusModule(),
-    DashboardModule.spending => const SpendingPlaceholder(),
-  };
 }
 
 class _TightNavIcon extends StatelessWidget {
